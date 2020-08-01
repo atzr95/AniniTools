@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+            android:id="@+id/navigation_flash"
+            android:icon="@drawable/ic_flashlight"
+            android:title="@string/title_light"/>
+
+    <item
+            android:id="@+id/navigation_sensor"
+            android:icon="@drawable/ic_sensor"
+            android:title="@string/title_sensor"/>
+
+    <item
+            android:id="@+id/navigation_compass"
+            android:icon="@drawable/ic_compass"
+            android:title="@string/title_compass"/>
+
+</menu>

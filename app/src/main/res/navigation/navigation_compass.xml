@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+            xmlns:app="http://schemas.android.com/apk/res-auto"
+            xmlns:tools="http://schemas.android.com/tools"
+            android:id="@+id/navigation_compass"
+            app:startDestination="@+id/compass">
+
+    <fragment
+            android:id="@+id/compass"
+            android:name="anini.aninitools.ui.compass.CompassFragment"
+            android:label="@string/title_compass"
+            tools:layout="@layout/fragment_compass"/>
+</navigation>

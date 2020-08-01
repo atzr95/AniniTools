@@ -1,0 +1,57 @@
+<resources>
+    <string name="app_name">Anini Tools</string>
+
+    <string name="title_light">Light</string>
+    <string name="title_sensor">Sensors</string>
+    <string name="title_compass">Compass</string>
+    <string name="sensor_ambient_temperature">AMBIENT TEMPERATURE</string>
+    <string name="sensor_ambienttemp_data">%s °C</string>
+
+    <string name="sensor_battery">BATTERY</string>
+    <string name="sensor_battery_percent">%1$s \%%</string>
+    <string name="sensor_battery_voltage">Voltage: %s mV</string>
+    <string name="sensor_battery_capacity">Capacity: %s mAh</string>
+    <string name="sensor_battery_technology">Technology: %s</string>
+    <string name="sensor_battery_status">Status: %s</string>
+    <string name="sensor_battery_temp">Battery Temperature: %s °C</string>
+
+    <string name="sensor_ambient_light">AMBIENT LIGHT</string>
+    <string name="sensor_ambientlight_data">%s lux</string>
+
+    <string name="sensor_magnetic_strength">MAGNETIC STRENGTH</string>
+    <string name="sensor_magnetic_data">%s µT</string>
+
+    <string name="sensor_pressure">PRESSURE</string>
+    <string name="sensor_pressure_data">%s hPa</string>
+
+    <string name="sensor_proximity">PROXIMITY</string>
+    <string name="sensor_proximity_data">%s cm</string>
+
+    <string name="sensor_linear_acceleration">LINEAR ACCELERATION</string>
+    <string name="sensor_acceleration_data">%s m/s\u00B2</string>
+
+    <string name="sensor_gps_location">GPS LOCATION</string>
+
+    <string name="sensor_orientation">ORIENTATION</string>
+    <string name="sensor_orientationx_data">X: %s</string>
+    <string name="sensor_orientationy_data">Y: %s</string>
+    <string name="sensor_orientationz_data">Z: %s</string>
+
+    <string name="sensor_sound_intensity">SOUND INTENSITY</string>
+    <string name="sensor_intensity_data">%s dB</string>
+    <string name="sensor_pitch_data">%s Hz</string>
+
+    <string name="sensor_gps_lat_data">Lat: %s</string>
+    <string name="sensor_gps_long_data">Long: %s</string>
+    <string name="sensor_sound_pitch">SOUND PITCH</string>
+
+    <string name="n">N</string>
+    <string name="e">E</string>
+    <string name="s">S</string>
+    <string name="w">W</string>
+    <string name="ne">NE</string>
+    <string name="se">SE</string>
+    <string name="sw">SW</string>
+    <string name="nw">NW</string>
+
+</resources>

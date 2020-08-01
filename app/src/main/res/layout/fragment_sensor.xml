@@ -1,0 +1,1086 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:context=".ui.sensor.SensorFragment">
+
+    <data>
+
+        <variable
+            name="viewmodel"
+            type="anini.aninitools.ui.sensor.SensorViewModel" />
+
+        <variable
+            name="chartlistener"
+            type="com.github.mikephil.charting.listener.OnChartValueSelectedListener" />
+    </data>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true">
+
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/sensor_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@color/flashOn">
+
+            <ImageButton
+                android:id="@+id/settings_button"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_marginTop="16dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/ic_settings"
+                android:elevation="3dp"
+                android:visibility="invisible"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <LinearLayout
+                android:id="@+id/linear_sensor"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:clipChildren="false"
+                android:orientation="vertical"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@+id/settings_button">
+
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/temp_card"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="16dp"
+                    android:elevation="16dp"
+                    app:cardBackgroundColor="@color/colorPrimary"
+                    app:cardCornerRadius="16dp"
+                    app:customVisibility="@{viewmodel.isTempVisible}">
+
+                    <androidx.constraintlayout.widget.ConstraintLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_margin="16dp">
+
+                        <TextView
+                            android:id="@+id/temp_text"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:fontFamily="@font/google_sans"
+                            android:lineSpacingExtra="8dp"
+                            android:text="@string/sensor_ambient_temperature"
+                            android:textColor="@color/white"
+                            android:textSize="16sp"
+                            android:textStyle="bold"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toTopOf="parent" />
+
+                        <TextView
+                            android:id="@+id/temp_result"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="16dp"
+                            android:layout_marginEnd="24dp"
+                            android:layout_marginBottom="16dp"
+                            android:fontFamily="@font/google_sans"
+                            android:lineSpacingExtra="8dp"
+                            android:text="@{@string/sensor_ambienttemp_data(Float.toString(viewmodel.ambientTemp))}"
+                            android:textAlignment="viewEnd"
+                            android:textColor="@color/white"
+                            android:textSize="30sp"
+                            android:textStyle="bold"
+                            app:layout_constraintBottom_toBottomOf="parent"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/temp_text"
+                            tools:text="30°C" />
+
+                        <ImageView
+                            android:id="@+id/imageView"
+                            android:layout_width="58dp"
+                            android:layout_height="58dp"
+                            android:layout_marginStart="8dp"
+                            android:layout_marginTop="16dp"
+                            android:layout_marginBottom="16dp"
+                            android:adjustViewBounds="true"
+                            android:scaleType="centerCrop"
+                            android:src="@drawable/ic_thermo"
+                            app:layout_constraintBottom_toBottomOf="parent"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/temp_text" />
+
+                    </androidx.constraintlayout.widget.ConstraintLayout>
+
+                </androidx.cardview.widget.CardView>
+
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/battery_card"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="16dp"
+                    android:elevation="16dp"
+                    android:onClick="@{() -> viewmodel.expandBatteryCard()}"
+                    app:cardBackgroundColor="@color/colorPrimary"
+                    app:cardCornerRadius="16dp"
+                    app:expandedView="@{batteryExtra}"
+                    app:mainView="@{linearSensor}"
+                    app:morphButton="@{batteryExpandButton}"
+                    app:onExpand="@{viewmodel.expandBattery}">
+
+                    <androidx.constraintlayout.widget.ConstraintLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_margin="16dp">
+
+                        <TextView
+                            android:id="@+id/battery_text"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:fontFamily="@font/google_sans"
+                            android:lineSpacingExtra="8dp"
+                            android:text="@string/sensor_battery"
+                            android:textColor="@color/white"
+                            android:textSize="16sp"
+                            android:textStyle="bold"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toTopOf="parent" />
+
+                        <TextView
+                            android:id="@+id/battery_result"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="16dp"
+                            android:layout_marginEnd="24dp"
+                            android:fontFamily="@font/google_sans"
+                            android:lineSpacingExtra="8dp"
+                            android:text="@{@string/sensor_battery_percent(viewmodel.batteryPercent)}"
+                            android:textAlignment="viewEnd"
+                            android:textColor="@color/white"
+                            android:textSize="30sp"
+                            android:textStyle="bold"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/battery_text"
+                            tools:text="30 %" />
+
+                        <anini.aninitools.ui.sensor.ExpandMorphView
+                            android:id="@+id/battery_expand_button"
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:layout_marginTop="8dp"
+                            android:src="@drawable/ic_toggle"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/battery_extra" />
+
+                        <ImageView
+                            android:id="@+id/imageView2"
+                            android:layout_width="58dp"
+                            android:layout_height="58dp"
+                            android:layout_marginStart="8dp"
+                            android:layout_marginTop="16dp"
+                            android:adjustViewBounds="true"
+                            android:scaleType="centerCrop"
+                            android:src="@drawable/ic_battery_full_black_24dp"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/battery_text" />
+
+                        <LinearLayout
+                            android:id="@+id/battery_extra"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:visibility="gone"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/imageView2">
+
+                            <TextView
+                                android:id="@+id/battery_status"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="8dp"
+                                android:layout_marginTop="24dp"
+                                android:animateLayoutChanges="true"
+                                android:fontFamily="@font/google_sans"
+                                android:lineSpacingExtra="8dp"
+                                android:text="@{@string/sensor_battery_status(viewmodel.batteryStatus)}"
+                                android:textColor="@color/white"
+                                android:textSize="14sp" />
+
+                            <TextView
+                                android:id="@+id/battery_voltage"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="8dp"
+                                android:layout_marginTop="4dp"
+                                android:animateLayoutChanges="true"
+                                android:fontFamily="@font/google_sans"
+                                android:lineSpacingExtra="8dp"
+                                android:text="@{@string/sensor_battery_voltage(viewmodel.batteryVoltage)}"
+                                android:textColor="@color/white"
+                                android:textSize="14sp"
+                                app:layout_constraintStart_toStartOf="parent"
+                                app:layout_constraintTop_toBottomOf="@+id/battery_status" />
+
+
+                            <TextView
+                                android:id="@+id/battery_temperature"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="8dp"
+                                android:layout_marginTop="4dp"
+                                android:animateLayoutChanges="true"
+                                android:fontFamily="@font/google_sans"
+                                android:lineSpacingExtra="8dp"
+                                android:text="@{@string/sensor_battery_temp(viewmodel.batteryTemp)}"
+                                android:textColor="@color/white"
+                                android:textSize="14sp"
+                                app:layout_constraintStart_toStartOf="parent"
+                                app:layout_constraintTop_toBottomOf="@+id/battery_voltage" />
+
+                            <TextView
+                                android:id="@+id/battery_capacity"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="8dp"
+                                android:layout_marginTop="4dp"
+                                android:animateLayoutChanges="true"
+                                android:fontFamily="@font/google_sans"
+                                android:lineSpacingExtra="8dp"
+                                android:text="@{@string/sensor_battery_capacity(viewmodel.batteryCapacity)}"
+                                android:textColor="@color/white"
+                                android:textSize="14sp"
+                                app:layout_constraintStart_toStartOf="parent"
+                                app:layout_constraintTop_toBottomOf="@+id/battery_temperature" />
+
+                            <TextView
+                                android:id="@+id/battery_tech"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="8dp"
+                                android:layout_marginTop="4dp"
+                                android:animateLayoutChanges="true"
+                                android:fontFamily="@font/google_sans"
+                                android:lineSpacingExtra="8dp"
+                                android:text="@{@string/sensor_battery_technology(viewmodel.batteryTechnology)}"
+                                android:textColor="@color/white"
+                                android:textSize="14sp"
+                                app:layout_constraintStart_toStartOf="parent"
+                                app:layout_constraintTop_toBottomOf="@+id/battery_capacity" />
+                        </LinearLayout>
+
+                    </androidx.constraintlayout.widget.ConstraintLayout>
+
+                </androidx.cardview.widget.CardView>
+
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/light_card"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="16dp"
+                    android:elevation="16dp"
+                    app:cardBackgroundColor="@color/colorPrimary"
+                    app:cardCornerRadius="16dp"
+                    app:customVisibility="@{viewmodel.isLightVisible}"
+                    android:onClick="@{() -> viewmodel.expandLightCard()}"
+                    app:expandedView="@{lightExtra}"
+                    app:mainView="@{linearSensor}"
+                    app:morphButton="@{lightExpandButton}"
+                    app:onExpand="@{viewmodel.expandLight}">
+
+                    <androidx.constraintlayout.widget.ConstraintLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_margin="16dp">
+
+                        <TextView
+                            android:id="@+id/light_text"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:fontFamily="@font/google_sans"
+                            android:lineSpacingExtra="8dp"
+                            android:text="@string/sensor_ambient_light"
+                            android:textColor="@color/white"
+                            android:textSize="16sp"
+                            android:textStyle="bold"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toTopOf="parent" />
+
+                        <TextView
+                            android:id="@+id/light_result"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="16dp"
+                            android:layout_marginEnd="24dp"
+                            android:fontFamily="@font/google_sans"
+                            android:lineSpacingExtra="8dp"
+                            android:text="@{@string/sensor_ambientlight_data(Float.toString(viewmodel.light))}"
+                            android:textAlignment="viewEnd"
+                            android:textColor="@color/white"
+                            android:textSize="30sp"
+                            android:textStyle="bold"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/light_text" />
+
+                        <ImageView
+                            android:id="@+id/imageView3"
+                            android:layout_width="58dp"
+                            android:layout_height="58dp"
+                            android:layout_marginStart="8dp"
+                            android:layout_marginTop="16dp"
+                            android:adjustViewBounds="true"
+                            android:scaleType="centerCrop"
+                            android:src="@drawable/ic_light"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/light_text" />
+
+                        <anini.aninitools.ui.sensor.ExpandMorphView
+                            android:id="@+id/light_expand_button"
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:layout_marginTop="8dp"
+                            android:src="@drawable/ic_toggle"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/light_extra" />
+
+                        <LinearLayout
+                            android:id="@+id/light_extra"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:visibility="gone"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/imageView3">
+
+                            <com.github.mikephil.charting.charts.LineChart
+                                android:id="@+id/light_graph"
+                                android:layout_width="match_parent"
+                                android:layout_height="200dp"
+                                android:layout_marginStart="8dp"
+                                app:chartVisibility="@{viewmodel.expandLight}"
+                                android:layout_marginTop="24dp"
+                                android:animateLayoutChanges="true"/>
+
+                        </LinearLayout>
+
+                    </androidx.constraintlayout.widget.ConstraintLayout>
+
+                </androidx.cardview.widget.CardView>
+
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/magnet_card"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="16dp"
+                    android:elevation="16dp"
+                    app:cardBackgroundColor="@color/colorPrimary"
+                    app:cardCornerRadius="16dp"
+                    app:customVisibility="@{viewmodel.isMagnetVisible}"
+                    android:onClick="@{() -> viewmodel.expandMagnetCard()}"
+                    app:expandedView="@{magnetExtra}"
+                    app:mainView="@{linearSensor}"
+                    app:morphButton="@{magnetExpandButton}"
+                    app:onExpand="@{viewmodel.expandMagnet}">
+
+                    <androidx.constraintlayout.widget.ConstraintLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_margin="16dp">
+
+                        <TextView
+                            android:id="@+id/magnet_text"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:fontFamily="@font/google_sans"
+                            android:lineSpacingExtra="8dp"
+                            android:text="@string/sensor_magnetic_strength"
+                            android:textColor="@color/white"
+                            android:textSize="16sp"
+                            android:textStyle="bold"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toTopOf="parent" />
+
+                        <TextView
+                            android:id="@+id/magnet_result"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="16dp"
+                            android:layout_marginEnd="24dp"
+                            android:fontFamily="@font/google_sans"
+                            android:lineSpacingExtra="8dp"
+                            android:text="@{@string/sensor_magnetic_data(Float.toString(viewmodel.magnetic))}"
+                            android:textAlignment="viewEnd"
+                            android:textColor="@color/white"
+                            android:textSize="30sp"
+                            android:textStyle="bold"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/magnet_text" />
+
+                        <ImageView
+                            android:id="@+id/imageView4"
+                            android:layout_width="58dp"
+                            android:layout_height="58dp"
+                            android:layout_marginStart="8dp"
+                            android:layout_marginTop="16dp"
+                            android:adjustViewBounds="true"
+                            android:scaleType="centerCrop"
+                            android:src="@drawable/ic_magnet"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/magnet_text" />
+
+                        <anini.aninitools.ui.sensor.ExpandMorphView
+                            android:id="@+id/magnet_expand_button"
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:layout_marginTop="8dp"
+                            android:src="@drawable/ic_toggle"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/magnet_extra" />
+
+                        <LinearLayout
+                            android:id="@+id/magnet_extra"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:visibility="gone"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/imageView4">
+
+                            <com.github.mikephil.charting.charts.LineChart
+                                android:id="@+id/magnet_graph"
+                                android:layout_width="match_parent"
+                                android:layout_height="200dp"
+                                android:layout_marginStart="8dp"
+                                app:chartVisibility="@{viewmodel.expandMagnet}"
+                                android:layout_marginTop="24dp"
+                                android:animateLayoutChanges="true"/>
+
+                        </LinearLayout>
+
+                    </androidx.constraintlayout.widget.ConstraintLayout>
+
+                </androidx.cardview.widget.CardView>
+
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/sound_intensity_card"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="16dp"
+                    android:elevation="16dp"
+                    app:cardBackgroundColor="@color/colorPrimary"
+                    app:cardCornerRadius="16dp"
+                    android:onClick="@{() -> viewmodel.expandSounddBCard()}"
+                    app:expandedView="@{sounddBExtra}"
+                    app:mainView="@{linearSensor}"
+                    app:morphButton="@{sounddBExpandButton}"
+                    app:onExpand="@{viewmodel.expandSounddB}">
+
+                    <androidx.constraintlayout.widget.ConstraintLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_margin="16dp">
+
+                        <TextView
+                            android:id="@+id/sound_intensity_text"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:fontFamily="@font/google_sans"
+                            android:lineSpacingExtra="8dp"
+                            android:text="@string/sensor_sound_intensity"
+                            android:textColor="@color/white"
+                            android:textSize="16sp"
+                            android:textStyle="bold"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toTopOf="parent" />
+
+                        <TextView
+                            android:id="@+id/sound_intensity_result"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="16dp"
+                            android:layout_marginEnd="24dp"
+                            android:fontFamily="@font/google_sans"
+                            android:lineSpacingExtra="8dp"
+                            android:text='@{viewmodel.audioIntesity=="Audio is OFF" ? viewmodel.audioIntesity:@string/sensor_intensity_data(viewmodel.audioIntesity)}'
+                            android:textAlignment="viewEnd"
+                            android:textColor="@color/white"
+                            android:textSize="30sp"
+                            android:textStyle="bold"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/sound_intensity_text" />
+
+                        <ImageView
+                            android:id="@+id/imageView5"
+                            android:layout_width="58dp"
+                            android:layout_height="58dp"
+                            android:layout_marginStart="8dp"
+                            android:layout_marginTop="16dp"
+                            android:adjustViewBounds="true"
+                            android:scaleType="centerCrop"
+                            android:src="@drawable/ic_sound_intensity"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/sound_intensity_text" />
+
+                        <anini.aninitools.ui.sensor.ExpandMorphView
+                            android:id="@+id/sounddB_expand_button"
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:layout_marginTop="8dp"
+                            android:src="@drawable/ic_toggle"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/sounddB_extra" />
+
+                        <LinearLayout
+                            android:id="@+id/sounddB_extra"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:visibility="gone"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/imageView5">
+
+                            <com.github.mikephil.charting.charts.LineChart
+                                android:id="@+id/sounddB_graph"
+                                android:layout_width="match_parent"
+                                android:layout_height="200dp"
+                                android:layout_marginStart="8dp"
+                                app:chartVisibility="@{viewmodel.expandSounddB}"
+                                android:layout_marginTop="24dp"
+                                android:animateLayoutChanges="true"/>
+
+                        </LinearLayout>
+                    </androidx.constraintlayout.widget.ConstraintLayout>
+
+                </androidx.cardview.widget.CardView>
+
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/sound_pitch_card"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="16dp"
+                    android:elevation="16dp"
+                    app:cardBackgroundColor="@color/colorPrimary"
+                    app:cardCornerRadius="16dp"
+                    android:onClick="@{() -> viewmodel.expandSoundPitchCard()}"
+                    app:expandedView="@{soundPitchExtra}"
+                    app:mainView="@{linearSensor}"
+                    app:morphButton="@{soundPitchExpandButton}"
+                    app:onExpand="@{viewmodel.expandSoundPitch}">
+
+                    <androidx.constraintlayout.widget.ConstraintLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_margin="16dp">
+
+                        <TextView
+                            android:id="@+id/sound_pitch_text"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:fontFamily="@font/google_sans"
+                            android:lineSpacingExtra="8dp"
+                            android:text="@string/sensor_sound_pitch"
+                            android:textColor="@color/white"
+                            android:textSize="16sp"
+                            android:textStyle="bold"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toTopOf="parent" />
+
+                        <TextView
+                            android:id="@+id/sound_pitch_result"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="16dp"
+                            android:layout_marginEnd="24dp"
+                            android:fontFamily="@font/google_sans"
+                            android:lineSpacingExtra="8dp"
+                            android:textAlignment="viewEnd"
+                            android:textColor="@color/white"
+                            android:text='@{viewmodel.audioPitch=="Audio is OFF" ? viewmodel.audioPitch:@string/sensor_pitch_data(viewmodel.audioPitch)}'
+                            android:textSize="30sp"
+                            android:textStyle="bold"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/sound_pitch_text"
+                            tools:text="30 kHz" />
+
+                        <ImageView
+                            android:id="@+id/imageView6"
+                            android:layout_width="58dp"
+                            android:layout_height="58dp"
+                            android:layout_marginStart="8dp"
+                            android:layout_marginTop="16dp"
+                            android:adjustViewBounds="true"
+                            android:scaleType="centerCrop"
+                            android:src="@drawable/ic_music"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/sound_pitch_text" />
+
+                        <anini.aninitools.ui.sensor.ExpandMorphView
+                            android:id="@+id/sound_pitch_expand_button"
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:layout_marginTop="8dp"
+                            android:src="@drawable/ic_toggle"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/soundPitch_extra" />
+
+                        <LinearLayout
+                            android:id="@+id/soundPitch_extra"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:visibility="gone"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/imageView6">
+
+                            <com.github.mikephil.charting.charts.LineChart
+                                android:id="@+id/soundPitch_graph"
+                                android:layout_width="match_parent"
+                                android:layout_height="200dp"
+                                android:layout_marginStart="8dp"
+                                app:chartVisibility="@{viewmodel.expandSoundPitch}"
+                                android:layout_marginTop="24dp"
+                                android:animateLayoutChanges="true"/>
+
+                        </LinearLayout>
+
+                    </androidx.constraintlayout.widget.ConstraintLayout>
+
+                </androidx.cardview.widget.CardView>
+
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/pressure_card"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="16dp"
+                    android:elevation="16dp"
+                    app:cardBackgroundColor="@color/colorPrimary"
+                    app:cardCornerRadius="16dp"
+                    app:customVisibility="@{viewmodel.isPressureVisible}">
+
+                    <androidx.constraintlayout.widget.ConstraintLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_margin="16dp">
+
+                        <TextView
+                            android:id="@+id/pressure_text"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:fontFamily="@font/google_sans"
+                            android:lineSpacingExtra="8dp"
+                            android:text="@string/sensor_pressure"
+                            android:textColor="@color/white"
+                            android:textSize="16sp"
+                            android:textStyle="bold"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toTopOf="parent" />
+
+                        <TextView
+                            android:id="@+id/pressure_result"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="16dp"
+                            android:layout_marginEnd="24dp"
+                            android:layout_marginBottom="16dp"
+                            android:fontFamily="@font/google_sans"
+                            android:lineSpacingExtra="8dp"
+                            android:textAlignment="viewEnd"
+                            android:textColor="@color/white"
+                            android:text = "@{@string/sensor_pressure_data(Float.toString(viewmodel.pressure))}"
+                            android:textSize="30sp"
+                            android:textStyle="bold"
+                            app:layout_constraintBottom_toBottomOf="parent"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/pressure_text"
+                            tools:text="30 hPa" />
+
+                        <ImageView
+                            android:id="@+id/imageView7"
+                            android:layout_width="58dp"
+                            android:layout_height="58dp"
+                            android:layout_marginStart="8dp"
+                            android:layout_marginTop="16dp"
+                            android:layout_marginBottom="8dp"
+                            android:adjustViewBounds="true"
+                            android:scaleType="centerCrop"
+                            android:src="@drawable/ic_pressure"
+                            app:layout_constraintBottom_toBottomOf="parent"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/pressure_text" />
+
+
+                    </androidx.constraintlayout.widget.ConstraintLayout>
+
+                </androidx.cardview.widget.CardView>
+
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/acceleration_card"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="16dp"
+                    android:elevation="16dp"
+                    app:cardBackgroundColor="@color/colorPrimary"
+                    app:cardCornerRadius="16dp"
+                    app:customVisibility="@{viewmodel.isAccelerationVisible}"
+                    android:onClick="@{() -> viewmodel.expandLinearAccCard()}"
+                    app:expandedView="@{linearAccExtra}"
+                    app:mainView="@{linearSensor}"
+                    app:morphButton="@{linearAccExpandButton}"
+                    app:onExpand="@{viewmodel.expandLinearAcc}">
+
+                    <androidx.constraintlayout.widget.ConstraintLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_margin="16dp">
+
+                        <TextView
+                            android:id="@+id/acceleration_text"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:fontFamily="@font/google_sans"
+                            android:lineSpacingExtra="8dp"
+                            android:text="@string/sensor_linear_acceleration"
+                            android:textColor="@color/white"
+                            android:textStyle="bold"
+                            android:textSize="16sp"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toTopOf="parent" />
+
+                        <TextView
+                            android:id="@+id/acceleration_result"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="16dp"
+                            android:layout_marginEnd="24dp"
+                            android:fontFamily="@font/google_sans"
+                            android:lineSpacingExtra="8dp"
+                            android:text = "@{@string/sensor_acceleration_data(Float.toString(viewmodel.linear_acceleration))}"
+                            android:textAlignment="viewEnd"
+                            android:textStyle="bold"
+                            android:textColor="@color/white"
+                            android:textSize="30sp"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/acceleration_text" />
+
+                        <ImageView
+                            android:id="@+id/imageView8"
+                            android:layout_width="58dp"
+                            android:layout_height="58dp"
+                            android:layout_marginStart="8dp"
+                            android:layout_marginTop="16dp"
+                            android:adjustViewBounds="true"
+                            android:scaleType="centerCrop"
+                            android:src="@drawable/ic_acceleration"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/acceleration_text" />
+
+                        <anini.aninitools.ui.sensor.ExpandMorphView
+                            android:id="@+id/linearAcc_expand_button"
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:layout_marginTop="8dp"
+                            android:src="@drawable/ic_toggle"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/linearAcc_extra" />
+
+                        <LinearLayout
+                            android:id="@+id/linearAcc_extra"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:visibility="gone"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/imageView8">
+
+                            <com.github.mikephil.charting.charts.LineChart
+                                android:id="@+id/linearAcc_graph"
+                                android:layout_width="match_parent"
+                                android:layout_height="200dp"
+                                android:layout_marginStart="8dp"
+                                app:chartVisibility="@{viewmodel.expandLinearAcc}"
+                                android:layout_marginTop="24dp"
+                                android:animateLayoutChanges="true"/>
+
+                        </LinearLayout>
+
+                    </androidx.constraintlayout.widget.ConstraintLayout>
+
+                </androidx.cardview.widget.CardView>
+
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/location_card"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="16dp"
+                    android:elevation="16dp"
+                    android:onClick="@{() -> viewmodel.expandGPSCard()}"
+                    app:cardBackgroundColor="@color/colorPrimary"
+                    app:cardCornerRadius="16dp">
+
+                    <androidx.constraintlayout.widget.ConstraintLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_margin="16dp">
+
+                        <TextView
+                            android:id="@+id/location_text"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:fontFamily="@font/google_sans"
+                            android:lineSpacingExtra="8dp"
+                            android:text="@string/sensor_gps_location"
+                            android:textStyle="bold"
+                            android:textColor="@color/white"
+                            android:textSize="16sp"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toTopOf="parent" />
+
+                        <TextView
+                            android:id="@+id/location_lat_result"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="16dp"
+                            android:layout_marginEnd="24dp"
+                            android:fontFamily="@font/google_sans"
+                            android:lineSpacingExtra="8dp"
+                            android:text = '@{@string/sensor_gps_lat_data(viewmodel.gpsCoordinates.split(",")[0])}'
+                            android:textStyle="bold"
+                            android:textAlignment="viewEnd"
+                            android:textColor="@color/white"
+                            android:textSize="25sp"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/location_text" />
+
+                        <TextView
+                            android:id="@+id/location_long_result"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:layout_marginEnd="24dp"
+                            android:layout_marginBottom="16dp"
+                            android:fontFamily="@font/google_sans"
+                            android:lineSpacingExtra="8dp"
+                            android:text='@{@string/sensor_gps_long_data(viewmodel.gpsCoordinates.split(",")[1])}'
+                            android:textAlignment="viewEnd"
+                            android:textColor="@color/white"
+                            android:textSize="25sp"
+                            android:textStyle="bold"
+                            app:layout_constraintBottom_toBottomOf="parent"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/location_lat_result" />
+
+                        <ImageView
+                            android:id="@+id/imageView9"
+                            android:layout_width="58dp"
+                            android:layout_height="58dp"
+                            android:layout_marginStart="8dp"
+                            android:layout_marginTop="16dp"
+                            android:layout_marginBottom="16dp"
+                            android:adjustViewBounds="true"
+                            android:scaleType="centerCrop"
+                            android:src="@drawable/ic_location"
+                            app:layout_constraintBottom_toBottomOf="@+id/location_long_result"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/location_text" />
+
+                        <!--anini.aninitools.ui.sensor.ExpandMorphView
+                            android:id="@+id/location_expand_button"
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:layout_marginTop="8dp"
+                            android:src="@drawable/ic_toggle"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/location_long_result" /-->
+
+                    </androidx.constraintlayout.widget.ConstraintLayout>
+
+                </androidx.cardview.widget.CardView>
+
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/orientation_card"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="16dp"
+                    android:elevation="16dp"
+                    app:cardBackgroundColor="@color/colorPrimary"
+                    app:cardCornerRadius="16dp"
+                    app:customVisibility="@{viewmodel.isOrentationVisible()}">
+
+                    <androidx.constraintlayout.widget.ConstraintLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_margin="16dp">
+
+                        <TextView
+                            android:id="@+id/orientation_text"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:fontFamily="@font/google_sans"
+                            android:lineSpacingExtra="8dp"
+                            android:text="@string/sensor_orientation"
+                            android:textColor="@color/white"
+                            android:textSize="16sp"
+                            android:textStyle="bold"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toTopOf="parent" />
+
+                        <TextView
+                            android:id="@+id/x_orientation_result"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="16dp"
+                            android:layout_marginEnd="24dp"
+                            android:fontFamily="@font/google_sans"
+                            android:lineSpacingExtra="8dp"
+                            android:text="@{@string/sensor_orientationx_data(Float.toString(viewmodel.orientationX))}"
+                            tools:text="X:50"
+                            android:textAlignment="viewEnd"
+                            android:textColor="@color/white"
+                            android:textSize="24sp"
+                            android:textStyle="bold"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/orientation_text" />
+
+
+                        <TextView
+                            android:id="@+id/y_orientation_result"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="24dp"
+                            android:fontFamily="@font/google_sans"
+                            android:lineSpacingExtra="8dp"
+                            android:text="@{@string/sensor_orientationy_data(Float.toString(viewmodel.orientationY))}"
+                            tools:text="Y:50"
+                            android:textAlignment="viewEnd"
+                            android:textColor="@color/white"
+                            android:textSize="24sp"
+                            android:textStyle="bold"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/x_orientation_result" />
+
+                        <TextView
+                            android:id="@+id/z_orientation_result"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="24dp"
+                            android:layout_marginBottom="16dp"
+                            android:fontFamily="@font/google_sans"
+                            android:lineSpacingExtra="8dp"
+                            android:text="@{@string/sensor_orientationz_data(Float.toString(viewmodel.orientationZ))}"
+                            tools:text="Z:50"
+                            android:textAlignment="viewEnd"
+                            android:textColor="@color/white"
+                            android:textSize="24sp"
+                            android:textStyle="bold"
+                            app:layout_constraintBottom_toBottomOf="parent"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/y_orientation_result" />
+
+                        <anini.aninitools.util.OrientationView
+                            android:id="@+id/orientation_view"
+                            android:layout_width="90dp"
+                            android:layout_height="90dp"
+                            android:layout_marginStart="8dp"
+                            android:layout_marginTop="8dp"
+                            android:layout_marginBottom="8dp"
+                            app:layout_constraintBottom_toBottomOf="parent"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/orientation_text" />
+
+                    </androidx.constraintlayout.widget.ConstraintLayout>
+
+                </androidx.cardview.widget.CardView>
+
+
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/proximity_card"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="16dp"
+                    android:elevation="16dp"
+                    android:textStyle="bold"
+                    app:cardBackgroundColor="@color/colorPrimary"
+                    app:cardCornerRadius="16dp"
+                    app:customVisibility="@{viewmodel.isProximityVisible}">
+
+                    <androidx.constraintlayout.widget.ConstraintLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_margin="16dp">
+
+                        <TextView
+                            android:id="@+id/proximity_text"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:fontFamily="@font/google_sans"
+                            android:lineSpacingExtra="8dp"
+                            android:text="@string/sensor_proximity"
+                            android:textColor="@color/white"
+                            android:textSize="16sp"
+                            android:textStyle="bold"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toTopOf="parent" />
+
+                        <TextView
+                            android:id="@+id/proximity_result"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="16dp"
+                            android:layout_marginEnd="24dp"
+                            android:layout_marginBottom="16dp"
+                            android:fontFamily="@font/google_sans"
+                            android:lineSpacingExtra="8dp"
+                            android:text="@{@string/sensor_proximity_data(Float.toString(viewmodel.proximity))}"
+                            android:textAlignment="viewEnd"
+                            android:textColor="@color/white"
+                            android:textSize="30sp"
+                            android:textStyle="bold"
+                            app:layout_constraintBottom_toBottomOf="parent"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/proximity_text"
+                            tools:text="5cm" />
+
+                        <ImageView
+                            android:id="@+id/imageView11"
+                            android:layout_width="58dp"
+                            android:layout_height="58dp"
+                            android:layout_marginStart="8dp"
+                            android:layout_marginTop="16dp"
+                            android:layout_marginBottom="8dp"
+                            android:adjustViewBounds="true"
+                            android:scaleType="centerCrop"
+                            android:src="@drawable/ic_proximity"
+                            app:layout_constraintBottom_toBottomOf="parent"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/proximity_text" />
+
+                    </androidx.constraintlayout.widget.ConstraintLayout>
+
+                </androidx.cardview.widget.CardView>
+
+            </LinearLayout>
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+    </ScrollView>
+</layout>

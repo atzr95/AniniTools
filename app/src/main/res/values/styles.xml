@@ -1,0 +1,40 @@
+<resources>
+
+    <!-- Base application theme. -->
+    <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
+        <!-- Customize your theme here. -->
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+        <item name="colorAccent">@color/colorAccent</item>
+        <item name="colorControlHighlight">@color/colorPrimaryRipple</item>
+
+        <item name="outerCircleColor">@color/md_indigo_300</item>
+        <item name="middleCircleColor">@color/colorPrimary</item>
+        <item name="innerCircleColor">@color/colorPrimary</item>
+        <item name="indicatorBackgroundColor">@color/md_indigo_800x</item>
+        <item name="indicatorTextColor">@color/md_indigo_50</item>
+        <item name="indicatorFieldColor">@color/blue_3</item>
+        <item name="smallMarkColor">@color/blue_2</item>
+        <item name="bigMarkColor">@color/md_indigo_50</item>
+        <item name="primaryTextColor">@color/md_indigo_50</item>
+        <item name="compassTextColor">@color/md_indigo_50</item>
+        <item name="secondaryTextColor">@color/md_indigo_100</item>
+        <item name="northMarkColor">#FF0000</item>
+        <item name="accelerometerGridColor">@color/blue_1</item>
+        <item name="accelerometerBallColor">@color/blue_1</item>
+    </style>
+
+    <style name="AppTheme.NoActionBar">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+    </style>
+
+    <style name="Splash" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:windowBackground">@drawable/splash_background</item>
+    </style>
+
+    <style name="BottomNavigationViewTextStyle">
+        <item name="android:fontFamily">@font/google_sans</item>
+    </style>
+
+</resources>
