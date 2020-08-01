@@ -22,6 +22,9 @@ Simple and beautiful app which has flashlight, sensors measurements and compass.
 - MPAndroidChart used to plot the graphs
 - Uses formulas and calculations technique as specified in [WhistlePunk Library in OpenScienceJournal](https://github.com/google/science-journal/tree/master/OpenScienceJournal)
 
+<img src="https://github.com/atzr95/AniniTools/blob/newBranch/ss1.png" width="240"> <img src="https://github.com/atzr95/AniniTools/blob/newBranch/ss2.png" width="240"> <img src="https://github.com/atzr95/AniniTools/blob/newBranch/ss3.png" width="240"> <img src="https://github.com/atzr95/AniniTools/blob/newBranch/ss4.png" width="240"> <img src="https://github.com/atzr95/AniniTools/blob/newBranch/ss5.png" width="240">
+
+
 ## License
 > MIT License
 > Copyright (c) 2020 Anthony 
