@@ -88,7 +88,7 @@
                             android:layout_marginBottom="16dp"
                             android:fontFamily="@font/google_sans"
                             android:lineSpacingExtra="8dp"
-                            android:text="@{@string/sensor_ambienttemp_data(Float.toString(viewmodel.ambientTemp))}"
+                            android:text="@{@string/sensor_ambienttemp_data(viewmodel.ambientTemp != null ? String.valueOf(viewmodel.ambientTemp) : `0.0`)}"
                             android:textAlignment="viewEnd"
                             android:textColor="@color/white"
                             android:textSize="30sp"
@@ -319,7 +319,7 @@
                             android:layout_marginEnd="24dp"
                             android:fontFamily="@font/google_sans"
                             android:lineSpacingExtra="8dp"
-                            android:text="@{@string/sensor_ambientlight_data(Float.toString(viewmodel.light))}"
+                            android:text="@{@string/sensor_ambientlight_data(viewmodel.light != null ? String.valueOf(viewmodel.light) : `0.0`)}"
                             android:textAlignment="viewEnd"
                             android:textColor="@color/white"
                             android:textSize="30sp"
@@ -415,7 +415,7 @@
                             android:layout_marginEnd="24dp"
                             android:fontFamily="@font/google_sans"
                             android:lineSpacingExtra="8dp"
-                            android:text="@{@string/sensor_magnetic_data(Float.toString(viewmodel.magnetic))}"
+                            android:text="@{@string/sensor_magnetic_data(viewmodel.magnetic != null ? String.valueOf(viewmodel.magnetic) : `0.0`)}"
                             android:textAlignment="viewEnd"
                             android:textColor="@color/white"
                             android:textSize="30sp"
@@ -613,6 +613,23 @@
                             app:layout_constraintTop_toBottomOf="@+id/sound_pitch_text"
                             tools:text="30 kHz" />
 
+                        <TextView
+                            android:id="@+id/sound_pitch_note"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:layout_marginEnd="24dp"
+                            android:fontFamily="@font/google_sans"
+                            android:lineSpacingExtra="8dp"
+                            android:textAlignment="viewEnd"
+                            android:textColor="@color/white"
+                            android:text="@{@string/sensor_pitch_note_data(viewmodel.audioPitchNote != null ? viewmodel.audioPitchNote : ``)}"
+                            android:textSize="18sp"
+                            android:textStyle="bold"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/sound_pitch_result"
+                            tools:text="A4 ♪" />
+
                         <ImageView
                             android:id="@+id/imageView6"
                             android:layout_width="58dp"
@@ -699,7 +716,7 @@
                             android:lineSpacingExtra="8dp"
                             android:textAlignment="viewEnd"
                             android:textColor="@color/white"
-                            android:text = "@{@string/sensor_pressure_data(Float.toString(viewmodel.pressure))}"
+                            android:text="@{@string/sensor_pressure_data(viewmodel.pressure != null ? String.valueOf(viewmodel.pressure) : `0.0`)}"
                             android:textSize="30sp"
                             android:textStyle="bold"
                             app:layout_constraintBottom_toBottomOf="parent"
@@ -769,7 +786,7 @@
                             android:layout_marginEnd="24dp"
                             android:fontFamily="@font/google_sans"
                             android:lineSpacingExtra="8dp"
-                            android:text = "@{@string/sensor_acceleration_data(Float.toString(viewmodel.linear_acceleration))}"
+                            android:text="@{@string/sensor_acceleration_data(viewmodel.linear_acceleration != null ? String.valueOf(viewmodel.linear_acceleration) : `0.0`)}"
                             android:textAlignment="viewEnd"
                             android:textStyle="bold"
                             android:textColor="@color/white"
@@ -813,6 +830,102 @@
                                 android:layout_height="200dp"
                                 android:layout_marginStart="8dp"
                                 app:chartVisibility="@{viewmodel.expandLinearAcc}"
+                                android:layout_marginTop="24dp"
+                                android:animateLayoutChanges="true"/>
+
+                        </LinearLayout>
+
+                    </androidx.constraintlayout.widget.ConstraintLayout>
+
+                </androidx.cardview.widget.CardView>
+
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/gyroscope_card"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="16dp"
+                    android:elevation="16dp"
+                    app:cardBackgroundColor="@color/colorPrimary"
+                    app:cardCornerRadius="16dp"
+                    app:customVisibility="@{viewmodel.isGyroscopeVisible}"
+                    android:onClick="@{() -> viewmodel.expandGyroscopeCard()}"
+                    app:expandedView="@{gyroscopeExtra}"
+                    app:mainView="@{linearSensor}"
+                    app:morphButton="@{gyroscopeExpandButton}"
+                    app:onExpand="@{viewmodel.expandGyroscope}">
+
+                    <androidx.constraintlayout.widget.ConstraintLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_margin="16dp">
+
+                        <TextView
+                            android:id="@+id/gyroscope_text"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:fontFamily="@font/google_sans"
+                            android:lineSpacingExtra="8dp"
+                            android:text="@string/sensor_gyroscope"
+                            android:textColor="@color/white"
+                            android:textStyle="bold"
+                            android:textSize="16sp"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toTopOf="parent" />
+
+                        <TextView
+                            android:id="@+id/gyroscope_result"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="16dp"
+                            android:layout_marginEnd="24dp"
+                            android:fontFamily="@font/google_sans"
+                            android:lineSpacingExtra="8dp"
+                            android:text="@{@string/sensor_gyroscope_data(viewmodel.gyroscopeMagnitude != null ? String.valueOf(viewmodel.gyroscopeMagnitude) : `0.0`)}"
+                            android:textAlignment="viewEnd"
+                            android:textStyle="bold"
+                            android:textColor="@color/white"
+                            android:textSize="30sp"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/gyroscope_text" />
+
+                        <ImageView
+                            android:id="@+id/imageView10"
+                            android:layout_width="58dp"
+                            android:layout_height="58dp"
+                            android:layout_marginStart="8dp"
+                            android:layout_marginTop="16dp"
+                            android:adjustViewBounds="true"
+                            android:scaleType="centerCrop"
+                            android:src="@drawable/ic_compass"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/gyroscope_text" />
+
+                        <anini.aninitools.ui.sensor.ExpandMorphView
+                            android:id="@+id/gyroscope_expand_button"
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:layout_marginTop="8dp"
+                            android:src="@drawable/ic_toggle"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/gyroscope_extra" />
+
+                        <LinearLayout
+                            android:id="@+id/gyroscope_extra"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:visibility="gone"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toBottomOf="@+id/imageView10">
+
+                            <com.github.mikephil.charting.charts.LineChart
+                                android:id="@+id/gyroscope_graph"
+                                android:layout_width="match_parent"
+                                android:layout_height="200dp"
+                                android:layout_marginStart="8dp"
+                                app:chartVisibility="@{viewmodel.expandGyroscope}"
                                 android:layout_marginTop="24dp"
                                 android:animateLayoutChanges="true"/>
 
@@ -921,7 +1034,7 @@
                     android:elevation="16dp"
                     app:cardBackgroundColor="@color/colorPrimary"
                     app:cardCornerRadius="16dp"
-                    app:customVisibility="@{viewmodel.isOrentationVisible()}">
+                    app:customVisibility="@{viewmodel.isOrentationVisible}">
 
                     <androidx.constraintlayout.widget.ConstraintLayout
                         android:layout_width="match_parent"
@@ -951,7 +1064,7 @@
                             android:layout_marginEnd="24dp"
                             android:fontFamily="@font/google_sans"
                             android:lineSpacingExtra="8dp"
-                            android:text="@{@string/sensor_orientationx_data(Float.toString(viewmodel.orientationX))}"
+                            android:text="@{@string/sensor_orientationx_data(viewmodel.orientationX != null ? String.valueOf(viewmodel.orientationX) : `0.0`)}"
                             tools:text="X:50"
                             android:textAlignment="viewEnd"
                             android:textColor="@color/white"
@@ -968,7 +1081,7 @@
                             android:layout_marginEnd="24dp"
                             android:fontFamily="@font/google_sans"
                             android:lineSpacingExtra="8dp"
-                            android:text="@{@string/sensor_orientationy_data(Float.toString(viewmodel.orientationY))}"
+                            android:text="@{@string/sensor_orientationy_data(viewmodel.orientationY != null ? String.valueOf(viewmodel.orientationY) : `0.0`)}"
                             tools:text="Y:50"
                             android:textAlignment="viewEnd"
                             android:textColor="@color/white"
@@ -985,7 +1098,7 @@
                             android:layout_marginBottom="16dp"
                             android:fontFamily="@font/google_sans"
                             android:lineSpacingExtra="8dp"
-                            android:text="@{@string/sensor_orientationz_data(Float.toString(viewmodel.orientationZ))}"
+                            android:text="@{@string/sensor_orientationz_data(viewmodel.orientationZ != null ? String.valueOf(viewmodel.orientationZ) : `0.0`)}"
                             tools:text="Z:50"
                             android:textAlignment="viewEnd"
                             android:textColor="@color/white"
@@ -1051,7 +1164,7 @@
                             android:layout_marginBottom="16dp"
                             android:fontFamily="@font/google_sans"
                             android:lineSpacingExtra="8dp"
-                            android:text="@{@string/sensor_proximity_data(Float.toString(viewmodel.proximity))}"
+                            android:text="@{@string/sensor_proximity_data(viewmodel.proximity != null ? String.valueOf(viewmodel.proximity) : `0.0`)}"
                             android:textAlignment="viewEnd"
                             android:textColor="@color/white"
                             android:textSize="30sp"

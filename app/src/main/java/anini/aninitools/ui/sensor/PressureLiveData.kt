@@ -10,7 +10,7 @@ import androidx.lifecycle.LiveData
 class PressureLiveData(context: Context) : LiveData<Float>(), SensorEventListener {
 
     private val sensorManager: SensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
-    private var pressureSensor: Sensor
+    private var pressureSensor: Sensor?
 
     init {
         pressureSensor = sensorManager.getDefaultSensor(Sensor.TYPE_PRESSURE)

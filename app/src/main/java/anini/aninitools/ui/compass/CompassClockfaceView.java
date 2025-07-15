@@ -44,6 +44,7 @@ public class CompassClockfaceView extends View {
     private Path northMarkPath2 = null;
 
     private float azimuth;
+    private static final float SMOOTHING_THRESHOLD = 0.5f; // More sensitive threshold for updates
 
     public CompassClockfaceView(Context context) {
         super(context);
@@ -288,8 +289,26 @@ public class CompassClockfaceView extends View {
     }
 
     public void updateAzimuth(float azimuth) {
-        if ((int)this.azimuth != (int)azimuth) {
-            this.azimuth = azimuth;
+        // Use more precise threshold for smoother updates
+        if (Math.abs(this.azimuth - azimuth) > SMOOTHING_THRESHOLD) {
+            // Handle angle wrapping around 0/360 degrees for smooth transition
+            float diff = azimuth - this.azimuth;
+            if (diff > 180) {
+                diff -= 360;
+            } else if (diff < -180) {
+                diff += 360;
+            }
+            
+            // Apply gentle smoothing to prevent sudden jumps
+            this.azimuth += diff * 0.3f; // Interpolation factor for smoothness
+            
+            // Normalize angle to 0-360 range
+            if (this.azimuth < 0) {
+                this.azimuth += 360;
+            } else if (this.azimuth >= 360) {
+                this.azimuth -= 360;
+            }
+            
             invalidate();
         }
     }

@@ -4,6 +4,26 @@
     <string name="title_light">Light</string>
     <string name="title_sensor">Sensors</string>
     <string name="title_compass">Compass</string>
+
+    <!-- Flashlight strings -->
+    <string name="flashlight_title">Flashlight &amp; Screen Light</string>
+    <string name="strobe_speed_control">Strobe Speed Control</string>
+    <string name="strobe_instruction">Tap flashlight button to enable strobe mode</string>
+    <string name="strobe_speed_slow">Slow</string>
+    <string name="strobe_speed_fast">Fast</string>
+    <string name="screen_flash_title">Screen Flash Light</string>
+    <string name="enable_screen_flash">Enable Screen Flash</string>
+    <string name="flash_color">Flash Color:</string>
+    <string name="color_picker_dialog_title">Choose Flash Color</string>
+    <string name="test_screen_flash">Test Screen Flash</string>
+    <string name="turn_off_screen_flash">Turn off screen flash</string>
+    <string name="concert_mode_title">Concert Mode - Rolling Text</string>
+    <string name="rolling_text_hint">Enter your message...</string>
+    <string name="rolling_text_speed">Speed: </string>
+    <string name="start_concert_mode">Start Concert Mode</string>
+    <string name="stop_concert_mode">Stop</string>
+    <string name="flash_camera_unavailable">Flash Camera is not available</string>
+
     <string name="sensor_ambient_temperature">AMBIENT TEMPERATURE</string>
     <string name="sensor_ambienttemp_data">%s °C</string>
 
@@ -44,6 +64,10 @@
     <string name="sensor_gps_lat_data">Lat: %s</string>
     <string name="sensor_gps_long_data">Long: %s</string>
     <string name="sensor_sound_pitch">SOUND PITCH</string>
+    <string name="sensor_pitch_note_data">%s</string>
+
+    <string name="sensor_gyroscope">GYROSCOPE</string>
+    <string name="sensor_gyroscope_data">%s rad/s</string>
 
     <string name="n">N</string>
     <string name="e">E</string>

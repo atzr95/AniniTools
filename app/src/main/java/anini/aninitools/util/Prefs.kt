@@ -24,6 +24,7 @@ class Prefs (context: Context) {
     val GPS = "sensor_gps"
     val PRESSURE = "sensor_pressure"
     val SOUND = "sensor_sound"
+    val GYROSCOPE = "sensor_gyroscope"
 
     val GPSPERMISSION = "gps_permission"
     val AUDIOPERMISSION = "audio_permission"
@@ -77,6 +78,10 @@ class Prefs (context: Context) {
     var sensorSound : Boolean
         get() = prefs.getBoolean(SOUND, false)
         set(value) = prefs.edit().putBoolean(SOUND,value).apply()
+
+    var sensorGyroscope : Boolean
+        get() = prefs.getBoolean(GYROSCOPE, false)
+        set(value) = prefs.edit().putBoolean(GYROSCOPE,value).apply()
 
     var gpsPermission : Boolean
         get() = prefs.getBoolean(GPSPERMISSION,false)

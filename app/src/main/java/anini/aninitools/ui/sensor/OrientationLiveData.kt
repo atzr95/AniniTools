@@ -11,8 +11,8 @@ import java.lang.Math.toDegrees
 class OrientationLiveData(context: Context) : LiveData<List<Float>>(), SensorEventListener {
 
     private val sensorManager: SensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
-    private var accelerationSensor: Sensor
-    private var magnetometerSensor: Sensor
+    private var accelerationSensor: Sensor?
+    private var magnetometerSensor: Sensor?
     private val accelerometerReading = FloatArray(3)
     private val magnetometerReading = FloatArray(3)
     private val rotationMatrix = FloatArray(9)

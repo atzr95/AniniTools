@@ -10,7 +10,7 @@ import androidx.lifecycle.LiveData
 class ProximityLiveData(context: Context) : LiveData<Float>(), SensorEventListener {
 
     private val sensorManager: SensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
-    private var proximitySensor: Sensor
+    private var proximitySensor: Sensor?
 
     init {
         proximitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY)

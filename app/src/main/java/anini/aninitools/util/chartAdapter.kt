@@ -18,5 +18,8 @@ fun setExpandCard(view: LineChart, expand: ExpandState) {
         ExpandState.START -> {
             view.visibility = View.GONE
         }
+
+        ExpandState.PERMISSION -> TODO()
+        ExpandState.ENABLED -> TODO()
     }
 }

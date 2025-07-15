@@ -10,7 +10,7 @@ import androidx.lifecycle.LiveData
 class OrentationLiveData(context: Context) : LiveData<List<Float>>(), SensorEventListener {
 
     private val sensorManager: SensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
-    private var orientationSensor: Sensor
+    private var orientationSensor: Sensor?
 
     init {
         orientationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)

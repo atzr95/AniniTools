@@ -3,8 +3,6 @@ package anini.aninitools.ui.compass
 import android.app.Application
 import androidx.lifecycle.*
 import anini.aninitools.util.Prefs
-import java.math.BigDecimal
-import java.math.RoundingMode
 
 class CompassViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -17,12 +15,16 @@ class CompassViewModel(application: Application) : AndroidViewModel(application)
         if (prefs.sensorMagnetic) {
             magnetic.addSource(CompassLiveData(application.applicationContext)) { result ->
                 result?.let {
-                    magnetic.value = BigDecimal(it[1].toDouble()).setScale(1, RoundingMode.HALF_EVEN).toFloat()
-                    if(it[0].toDouble() < 0){
-                        azimuth.value = 360.0f + BigDecimal(it[0].toDouble()).setScale(1, RoundingMode.HALF_EVEN).toFloat()
-                    }else{
-                        azimuth.value = BigDecimal(it[0].toDouble()).setScale(1, RoundingMode.HALF_EVEN).toFloat()
+                    // Keep magnetic field value rounded for display
+                    magnetic.value = kotlin.math.round(it[1] * 10f) / 10f
+                    
+                    // Use full precision for smoother azimuth animation
+                    val azimuthDegrees = if(it[0] < 0) {
+                        360.0f + it[0]
+                    } else {
+                        it[0]
                     }
+                    azimuth.value = azimuthDegrees
                 }
             }
         }

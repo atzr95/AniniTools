@@ -4,8 +4,9 @@ import androidx.lifecycle.LiveData
 import anini.aninitools.ui.sensor.AudioSource.AudioReceiver
 import anini.aninitools.ui.sensor.AudioSource.SAMPLE_RATE_IN_HZ
 import java.util.*
+import kotlin.math.abs
 
-class DecibelLiveData : LiveData<List<Double>>() {
+class DecibelLiveData : LiveData<List<Any>>() {
 
     private val audioSource = AudioSource()
     private var audiofreqReceiver: AudioReceiver? = null
@@ -38,10 +39,10 @@ class DecibelLiveData : LiveData<List<Double>>() {
                         calibratedFrequency = previousFrequency as Double
                     }
 
-                    val lengthToCopy = Math.min(
-                        audioSourceBuffer.size - audioSourceBufferOffset,
-                        audioAnalyzerBuffer.size - audioAnalyzerBufferOffset
-                    )
+                    val lengthToCopy =
+                        (audioSourceBuffer.size - audioSourceBufferOffset).coerceAtMost(
+                            audioAnalyzerBuffer.size - audioAnalyzerBufferOffset
+                        )
 
                     System.arraycopy(
                         audioSourceBuffer,
@@ -79,7 +80,7 @@ class DecibelLiveData : LiveData<List<Double>>() {
             }
 
             private fun isDrasticSpike(frequency: Double): Boolean {
-                return (previousFrequency != null && Math.abs(frequency - previousFrequency!!) / previousFrequency!! > 0.50)
+                return (previousFrequency != null && abs(frequency - previousFrequency!!) / previousFrequency!! > 0.50)
             }
         }
 
@@ -87,9 +88,12 @@ class DecibelLiveData : LiveData<List<Double>>() {
 
 
         // Update the elapsed time every second.
-        Timer().scheduleAtFixedRate(object : TimerTask() {
+        Timer().schedule(object : TimerTask() {
             override fun run() {
-                postValue(listOf(calibratedDecibels, calibratedFrequency))
+                val noteInfo = if (calibratedFrequency > 0) {
+                    MusicNoteUtils.frequencyToNote(calibratedFrequency)
+                } else null
+                postValue(listOf(calibratedDecibels, calibratedFrequency, noteInfo) as List<Any>?)
             }
         }, 1, 550)
 

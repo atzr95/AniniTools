@@ -7,13 +7,13 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import androidx.lifecycle.LiveData
 
-class LightLiveData(context: Context) : LiveData<Float>(), SensorEventListener {
+class GyroscopeLiveData(context: Context) : LiveData<List<Float>>(), SensorEventListener {
 
     private val sensorManager: SensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
-    private var lightSensor: Sensor?
+    private var gyroscopeSensor: Sensor?
 
     init {
-        lightSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LIGHT)
+        gyroscopeSensor = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
     }
 
     /**
@@ -21,7 +21,7 @@ class LightLiveData(context: Context) : LiveData<Float>(), SensorEventListener {
      */
     override fun onActive() {
         super.onActive()
-        sensorManager.registerListener(this, lightSensor, SensorManager.SENSOR_DELAY_NORMAL)
+        sensorManager.registerListener(this, gyroscopeSensor, SensorManager.SENSOR_DELAY_NORMAL)
     }
 
     /**
@@ -32,13 +32,13 @@ class LightLiveData(context: Context) : LiveData<Float>(), SensorEventListener {
         sensorManager.unregisterListener(this)
     }
 
-    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
-    }
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
     /**
      * Triggered when sensor value changes.
+     * Returns angular velocity around device's x, y, and z axes in rad/s
      */
     override fun onSensorChanged(event: SensorEvent) {
-        value = event.values[0]
+        value = listOf(event.values[0], event.values[1], event.values[2])
     }
-}
+} 

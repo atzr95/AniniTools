@@ -26,8 +26,8 @@ class CompassLiveData(context: Context) : LiveData<List<Float>>(), SensorEventLi
     private var magsFilled: Boolean = false
 
     init {
-        accelerationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-        magnetometerSensor = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
+        accelerationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)!!
+        magnetometerSensor = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)!!
     }
 
     /**
@@ -35,8 +35,8 @@ class CompassLiveData(context: Context) : LiveData<List<Float>>(), SensorEventLi
      */
     override fun onActive() {
         super.onActive()
-        sensorManager.registerListener(this, accelerationSensor, SensorManager.SENSOR_DELAY_GAME)
-        sensorManager.registerListener(this, magnetometerSensor, SensorManager.SENSOR_DELAY_GAME)
+        sensorManager.registerListener(this, accelerationSensor, SensorManager.SENSOR_DELAY_UI)
+        sensorManager.registerListener(this, magnetometerSensor, SensorManager.SENSOR_DELAY_UI)
     }
 
     /**
@@ -54,7 +54,7 @@ class CompassLiveData(context: Context) : LiveData<List<Float>>(), SensorEventLi
      */
     override fun onSensorChanged(event: SensorEvent) {
 
-        val ALPHA = 0.96f
+        val ALPHA = 0.92f
 
         when (event.sensor.type) {
             Sensor.TYPE_ACCELEROMETER -> {

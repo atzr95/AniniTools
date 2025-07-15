@@ -9,6 +9,7 @@ import anini.aninitools.util.Prefs
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.util.*
+import kotlin.math.sqrt
 
 
 class SensorViewModel(application: Application) : AndroidViewModel(application) {
@@ -168,6 +169,44 @@ class SensorViewModel(application: Application) : AndroidViewModel(application) 
         return@lazy mediatorLiveData
     }
 
+    val gyroscope by lazy {
+        val mediatorLiveData = MediatorLiveData<List<Float>>()
+        if (prefs.sensorGyroscope) {
+            mediatorLiveData.addSource(GyroscopeLiveData(application.applicationContext)) { result ->
+                result?.let {
+                    mediatorLiveData.postValue(
+                        it.map { value ->
+                            BigDecimal(value.toDouble()).setScale(
+                                3,
+                                RoundingMode.HALF_EVEN
+                            ).toFloat()
+                        }
+                    )
+                }
+            }
+        }
+        return@lazy mediatorLiveData
+    }
+
+    val gyroscopeMagnitude by lazy {
+        val mediatorLiveData = MediatorLiveData<Float>()
+        if (prefs.sensorGyroscope) {
+            mediatorLiveData.addSource(gyroscope) { result ->
+                result?.let {
+                    // Calculate magnitude of angular velocity vector
+                    val magnitude = sqrt(it[0] * it[0] + it[1] * it[1] + it[2] * it[2])
+                    mediatorLiveData.postValue(
+                        BigDecimal(magnitude.toDouble()).setScale(
+                            4,
+                            RoundingMode.HALF_EVEN
+                        ).toFloat()
+                    )
+                }
+            }
+        }
+        return@lazy mediatorLiveData
+    }
+
     val orientation by lazy {
         val mediatorLiveData = MediatorLiveData<List<Float>>()
         if (prefs.sensorOrientation) {
@@ -233,6 +272,7 @@ class SensorViewModel(application: Application) : AndroidViewModel(application) 
 
     val audioIntesity = MediatorLiveData<String>()
     val audioPitch = MediatorLiveData<String>()
+    val audioPitchNote = MediatorLiveData<String>()
     val gpsCoordinates = MediatorLiveData<String>()
 
     val gpsStatus = GpsStatusListener(application)
@@ -246,6 +286,7 @@ class SensorViewModel(application: Application) : AndroidViewModel(application) 
     val lightGraph = MediatorLiveData<Float>()
     val magneticGraph = MediatorLiveData<Float>()
     val linearAccGraph = MediatorLiveData<Float>()
+    val gyroscopeGraph = MediatorLiveData<Float>()
     val audioIntesityGraph = MediatorLiveData<Float>()
     val audioPitchGraph = MediatorLiveData<Float>()
 
@@ -262,7 +303,7 @@ class SensorViewModel(application: Application) : AndroidViewModel(application) 
         // Update the elapsed time every second.
         Timer().scheduleAtFixedRate(object : TimerTask() {
             override fun run() {
-                lightGraph.postValue(pastLightData)
+                lightGraph.postValue(pastLightData ?: 0.0f)
             }
         }, 0, 800)
     }
@@ -301,6 +342,17 @@ class SensorViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun gyroscopeGraphSource() {
+        gyroscopeGraph.removeSource(gyroscope)
+        gyroscopeGraph.addSource(gyroscope) { result ->
+            result?.let {
+                // Calculate magnitude of angular velocity vector
+                val magnitude = kotlin.math.sqrt(it[0] * it[0] + it[1] * it[1] + it[2] * it[2])
+                gyroscopeGraph.value = magnitude
+            }
+        }
+    }
+
     private val _audioSourced = MutableLiveData<Int>().apply {
         value = 0
     }
@@ -333,6 +385,10 @@ class SensorViewModel(application: Application) : AndroidViewModel(application) 
         value = 0
     }
 
+    private val _expandGyroscope = MutableLiveData<Int>().apply {
+        value = 0
+    }
+
     val isTempVisible = MutableLiveData<Boolean>().apply {
         value = prefs.sensorAmbientTemp
     }
@@ -361,6 +417,10 @@ class SensorViewModel(application: Application) : AndroidViewModel(application) 
         value = prefs.sensorOrientation
     }
 
+    val isGyroscopeVisible = MutableLiveData<Boolean>().apply {
+        value = prefs.sensorGyroscope
+    }
+
     fun expandBatteryCard() {
         when {
             _expandBattery.value == 0 -> _expandBattery.value = 1
@@ -369,8 +429,8 @@ class SensorViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    val expandBattery: LiveData<ExpandState> = Transformations.map(_expandBattery) {
-        when (it) {
+    val expandBattery: LiveData<ExpandState> = _expandBattery.map { value ->
+        when (value) {
             1 -> ExpandState.ON
             2 -> ExpandState.OFF
             else -> ExpandState.START
@@ -385,8 +445,8 @@ class SensorViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    val expandLight: LiveData<ExpandState> = Transformations.map(_expandLight) {
-        when (it) {
+    val expandLight: LiveData<ExpandState> = _expandLight.map { value ->
+        when (value) {
             1 -> ExpandState.ON
             2 -> ExpandState.OFF
             else -> ExpandState.START
@@ -401,8 +461,8 @@ class SensorViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    val expandMagnet: LiveData<ExpandState> = Transformations.map(_expandMagnet) {
-        when (it) {
+    val expandMagnet: LiveData<ExpandState> = _expandMagnet.map { value ->
+        when (value) {
             1 -> ExpandState.ON
             2 -> ExpandState.OFF
             else -> ExpandState.START
@@ -417,8 +477,24 @@ class SensorViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    val expandLinearAcc: LiveData<ExpandState> = Transformations.map(_expandLinearAcc) {
-        when (it) {
+    val expandLinearAcc: LiveData<ExpandState> = _expandLinearAcc.map { value ->
+        when (value) {
+            1 -> ExpandState.ON
+            2 -> ExpandState.OFF
+            else -> ExpandState.START
+        }
+    }
+
+    fun expandGyroscopeCard() {
+        when {
+            _expandGyroscope.value == 0 -> _expandGyroscope.value = 1
+            _expandGyroscope.value == 1 -> _expandGyroscope.value = 2
+            _expandGyroscope.value == 2 -> _expandGyroscope.value = 1
+        }
+    }
+
+    val expandGyroscope: LiveData<ExpandState> = _expandGyroscope.map { value ->
+        when (value) {
             1 -> ExpandState.ON
             2 -> ExpandState.OFF
             else -> ExpandState.START
@@ -447,8 +523,8 @@ class SensorViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    val expandSounddB: LiveData<ExpandState> = Transformations.map(_expandSounddB) {
-        when (it) {
+    val expandSounddB: LiveData<ExpandState> = _expandSounddB.map { value ->
+        when (value) {
             1 -> ExpandState.ON
             2 -> ExpandState.OFF
             3 -> ExpandState.PERMISSION
@@ -478,8 +554,8 @@ class SensorViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    val expandSoundPitch: LiveData<ExpandState> = Transformations.map(_expandSoundPitch) {
-        when (it) {
+    val expandSoundPitch: LiveData<ExpandState> = _expandSoundPitch.map { value ->
+        when (value) {
             1 -> ExpandState.ON
             2 -> ExpandState.OFF
             3 -> ExpandState.PERMISSION
@@ -521,8 +597,8 @@ class SensorViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    val expandGPS: LiveData<ExpandState> = Transformations.map(_expandGPS) {
-        when (it) {
+    val expandGPS: LiveData<ExpandState> = _expandGPS.map { value ->
+        when (value) {
             1 -> ExpandState.ON
             2 -> ExpandState.OFF
             3 -> ExpandState.PERMISSION
@@ -536,20 +612,31 @@ class SensorViewModel(application: Application) : AndroidViewModel(application) 
             _audioPermission = true
             if(_audioSourced.value == 0){
                 _audioSourced.value = 1
-                audioIntesity.removeSource(DecibelLiveData())
-                audioIntesity.addSource(DecibelLiveData()) { result ->
+                val decibelLiveData = DecibelLiveData()
+                
+                audioIntesity.removeSource(decibelLiveData)
+                audioIntesity.addSource(decibelLiveData) { result ->
                     result?.let {
                         audioIntesity.postValue(
-                            BigDecimal(it[0]).setScale(
+                            BigDecimal(it[0] as Double).setScale(
                                 1,
                                 RoundingMode.HALF_EVEN
                             ).toString()
                         )
                         audioPitch.postValue(
-                            BigDecimal(it[1]).setScale(
+                            BigDecimal(it[1] as Double).setScale(
                                 1,
                                 RoundingMode.HALF_EVEN
                             ).toString()
+                        )
+                        
+                        val noteInfo = it.getOrNull(2) as? NoteInfo
+                        audioPitchNote.postValue(
+                            if (noteInfo != null) {
+                                "${MusicNoteUtils.formatNote(noteInfo)} ${MusicNoteUtils.getTuningIndicator(noteInfo)}"
+                            } else {
+                                ""
+                            }
                         )
                     }
                 }
@@ -558,6 +645,7 @@ class SensorViewModel(application: Application) : AndroidViewModel(application) 
             _audioPermission = false
             audioIntesity.postValue("Audio is OFF")
             audioPitch.postValue("Audio is OFF")
+            audioPitchNote.postValue("Audio is OFF")
         }
     }
 
@@ -602,6 +690,7 @@ class SensorViewModel(application: Application) : AndroidViewModel(application) 
         _expandSoundPitch.value = 0
         _expandGPS.value = 0
         _expandLinearAcc.value = 0
+        _expandGyroscope.value = 0
     }
 
 }

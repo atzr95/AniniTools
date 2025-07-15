@@ -14,7 +14,7 @@ class AccelerationLiveData(context: Context) : LiveData<Float>(), SensorEventLis
     private var accelerationSensor: Sensor
 
     init {
-        accelerationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION)
+        accelerationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION)!!
     }
 
     /**

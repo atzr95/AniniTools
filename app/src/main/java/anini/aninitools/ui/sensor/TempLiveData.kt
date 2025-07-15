@@ -10,7 +10,7 @@ import androidx.lifecycle.LiveData
 class TempLiveData(context: Context) : LiveData<Float>(), SensorEventListener {
 
     private val sensorManager: SensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
-    private var tempSensor: Sensor
+    private var tempSensor: Sensor?
 
     init {
         tempSensor = sensorManager.getDefaultSensor(Sensor.TYPE_AMBIENT_TEMPERATURE)

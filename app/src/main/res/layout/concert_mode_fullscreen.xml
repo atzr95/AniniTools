@@ -1,0 +1,418 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <data>
+    </data>
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/concert_mode_layout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@android:color/black"
+        android:keepScreenOn="true">
+
+        <!-- Landscape Instruction -->
+        <TextView
+            android:id="@+id/landscapeInstruction"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="16dp"
+            android:text="🔄 Rotate your device to landscape for best concert experience"
+            android:textColor="#FFFF9800"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:alpha="0.9"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <!-- Full Screen Rolling Text Display -->
+        <anini.aninitools.ui.flashlight.SmoothMarqueeTextView
+            android:id="@+id/rollingTextDisplay"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_margin="24dp"
+            app:layout_constraintBottom_toTopOf="@+id/controlPanel"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/landscapeInstruction" />
+
+        <!-- Control Panel at Bottom - Material 3 -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/controlPanel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="16dp"
+            android:layout_marginTop="16dp"
+            app:cardBackgroundColor="#90000000"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="12dp"
+            app:strokeColor="#40FFFFFF"
+            app:strokeWidth="1dp"
+            style="@style/Widget.Material3.CardView.Elevated"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <!-- Close Button (X) at the top -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="end"
+                    android:layout_marginBottom="0dp">
+
+                    <TextView
+                        android:id="@+id/closeControlsButton"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:text="✕"
+                        android:textColor="#FFFF5722"
+                        android:textStyle="bold"
+                        android:textSize="20sp"
+                        android:gravity="center"
+                        android:background="?android:attr/selectableItemBackgroundBorderless"
+                        android:clickable="true"
+                        android:focusable="true" />
+
+                </LinearLayout>
+
+                <!-- Text Input - Material 3 -->
+                <com.google.android.material.textfield.TextInputLayout
+                    style="@style/Widget.Material3.TextInputLayout.FilledBox"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="10dp"
+                    android:hint="Enter your message..."
+                    app:boxBackgroundColor="#E0000000"
+                    app:boxBackgroundMode="filled"
+                    app:boxCornerRadiusBottomEnd="12dp"
+                    app:boxCornerRadiusBottomStart="12dp"
+                    app:boxCornerRadiusTopEnd="12dp"
+                    app:boxCornerRadiusTopStart="12dp"
+                    app:boxStrokeWidth="0dp"
+                    app:boxStrokeWidthFocused="0dp"
+                    app:expandedHintEnabled="false"
+                    app:hintAnimationEnabled="true"
+                    app:hintEnabled="true"
+                    app:hintTextColor="#AAAAAA">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/concertTextInput"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:imeOptions="actionDone"
+                        android:inputType="textMultiLine"
+                        android:maxLines="3"
+                        android:backgroundTint="#303030"
+                        android:textColor="@android:color/white"
+                        android:textSize="16sp"
+                        android:fontFamily="sans-serif"
+                        android:textDirection="locale" />
+
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <!-- Rolling Speed Control -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="4dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Rolling: "
+                        android:textColor="@android:color/white"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:layout_marginEnd="6dp" />
+
+                    <com.google.android.material.slider.Slider
+                        android:id="@+id/concertSpeedSeekBar"
+                        style="@style/Widget.Material3.Slider"
+                        android:layout_width="0dp"
+                        android:layout_height="20dp"
+                        android:layout_weight="1"
+                        android:stepSize="5"
+                        android:value="60"
+                        android:valueFrom="10"
+                        android:valueTo="100"
+                        app:haloColor="#404CAF50"
+                        app:haloRadius="6dp"
+                        app:thumbColor="@android:color/white"
+                        app:thumbHeight="14dp"
+                        app:thumbRadius="7dp"
+                        app:trackColorActive="#FF4CAF50"
+                        app:trackColorInactive="#40FFFFFF"
+                        app:trackHeight="2dp" />
+
+                </LinearLayout>
+
+                <!-- Blinking Speed Control -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="4dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Blink: "
+                        android:textColor="@android:color/white"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:layout_marginEnd="6dp" />
+
+                    <com.google.android.material.slider.Slider
+                        android:id="@+id/concertBlinkSpeedSlider"
+                        style="@style/Widget.Material3.Slider"
+                        android:layout_width="0dp"
+                        android:layout_height="20dp"
+                        android:layout_weight="1"
+                        android:stepSize="50"
+                        android:value="0"
+                        android:valueFrom="0"
+                        android:valueTo="1000"
+                        app:haloColor="#40FF9800"
+                        app:haloRadius="6dp"
+                        app:thumbColor="@android:color/white"
+                        app:thumbHeight="14dp"
+                        app:thumbRadius="7dp"
+                        app:trackColorActive="#FFFF9800"
+                        app:trackColorInactive="#40FFFFFF"
+                        app:trackHeight="2dp" />
+
+                </LinearLayout>
+
+                <!-- Text Size Control -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="4dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Size: "
+                        android:textColor="@android:color/white"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:layout_marginEnd="6dp" />
+
+                    <com.google.android.material.slider.Slider
+                        android:id="@+id/concertTextSizeSlider"
+                        style="@style/Widget.Material3.Slider"
+                        android:layout_width="0dp"
+                        android:layout_height="20dp"
+                        android:layout_weight="1"
+                        android:stepSize="8"
+                        android:value="96"
+                        android:valueFrom="48"
+                        android:valueTo="144"
+                        app:haloColor="#409C27B0"
+                        app:haloRadius="6dp"
+                        app:thumbColor="@android:color/white"
+                        app:thumbHeight="14dp"
+                        app:thumbRadius="7dp"
+                        app:trackColorActive="#FF9C27B0"
+                        app:trackColorInactive="#40FFFFFF"
+                        app:trackHeight="2dp" />
+
+                </LinearLayout>
+
+                <!-- Color Pickers Row -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center"
+                    android:layout_marginBottom="12dp">
+
+                    <!-- Text Color Picker -->
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/textColorCard"
+                        android:layout_width="0dp"
+                        android:layout_height="40dp"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="8dp"
+                        android:clickable="true"
+                        android:focusable="true"
+                        app:cardBackgroundColor="@android:color/white"
+                        app:cardCornerRadius="12dp"
+                        app:cardElevation="4dp"
+                        app:strokeColor="#40FFFFFF"
+                        app:strokeWidth="1dp"
+                        style="@style/Widget.Material3.CardView.Elevated">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:orientation="horizontal"
+                            android:gravity="center"
+                            android:padding="8dp">
+
+                            <View
+                                android:id="@+id/textColorSwatch"
+                                android:layout_width="24dp"
+                                android:layout_height="24dp"
+                                android:layout_marginEnd="8dp"
+                                android:background="@android:color/white" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Text"
+                                android:textColor="@android:color/black"
+                                android:textSize="12sp"
+                                android:textStyle="bold" />
+
+                        </LinearLayout>
+
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <!-- Background Color Picker -->
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/backgroundColorCard"
+                        android:layout_width="0dp"
+                        android:layout_height="40dp"
+                        android:layout_weight="1"
+                        android:layout_marginStart="8dp"
+                        android:clickable="true"
+                        android:focusable="true"
+                        app:cardBackgroundColor="@android:color/black"
+                        app:cardCornerRadius="12dp"
+                        app:cardElevation="4dp"
+                        app:strokeColor="#40FFFFFF"
+                        app:strokeWidth="1dp"
+                        style="@style/Widget.Material3.CardView.Elevated">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:orientation="horizontal"
+                            android:gravity="center"
+                            android:padding="8dp">
+
+                            <View
+                                android:id="@+id/backgroundColorSwatch"
+                                android:layout_width="24dp"
+                                android:layout_height="24dp"
+                                android:layout_marginEnd="8dp"
+                                android:background="@android:color/black" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="BG"
+                                android:textColor="@android:color/white"
+                                android:textSize="12sp"
+                                android:textStyle="bold" />
+
+                        </LinearLayout>
+
+                    </com.google.android.material.card.MaterialCardView>
+
+                </LinearLayout>
+
+                <!-- Control Buttons -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center"
+                    android:layout_marginTop="4dp">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/startConcertButton"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="4dp"
+                        android:text="START"
+                        android:textColor="@android:color/white"
+                        android:textStyle="bold"
+                        android:textSize="14sp"
+                        android:textAllCaps="true"
+                        android:maxLines="1"
+                        android:ellipsize="end"
+                        app:backgroundTint="#FF4CAF50"
+                        app:cornerRadius="12dp"
+                        app:elevation="4dp"
+                        app:rippleColor="#80FFFFFF"
+                        style="@style/Widget.Material3.Button" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/stopConcertButton"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_weight="1"
+                        android:layout_marginStart="4dp"
+                        android:layout_marginEnd="4dp"
+                        android:text="STOP"
+                        android:textColor="@android:color/white"
+                        android:textStyle="bold"
+                        android:textSize="14sp"
+                        android:textAllCaps="true"
+                        android:maxLines="1"
+                        android:ellipsize="end"
+                        app:backgroundTint="#FFFF9800"
+                        app:cornerRadius="12dp"
+                        app:elevation="4dp"
+                        app:rippleColor="#80FFFFFF"
+                        style="@style/Widget.Material3.Button" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/closeConcertButton"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_weight="1"
+                        android:layout_marginStart="4dp"
+                        android:text="CLOSE"
+                        android:textColor="@android:color/white"
+                        android:textStyle="bold"
+                        android:textSize="14sp"
+                        android:textAllCaps="true"
+                        android:maxLines="1"
+                        android:ellipsize="end"
+                        app:backgroundTint="#FFF44336"
+                        app:cornerRadius="12dp"
+                        app:elevation="4dp"
+                        app:rippleColor="#80FFFFFF"
+                        style="@style/Widget.Material3.Button" />
+
+                </LinearLayout>
+
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Tap anywhere to hide controls -->
+        <View
+            android:id="@+id/tapToHideOverlay"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:background="@android:color/transparent"
+            app:layout_constraintBottom_toTopOf="@+id/controlPanel"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+</layout> 

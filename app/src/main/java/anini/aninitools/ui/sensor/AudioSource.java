@@ -1,9 +1,13 @@
 package anini.aninitools.ui.sensor;
 
+import android.Manifest;
+import android.content.pm.PackageManager;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
 import android.util.Log;
+
+import androidx.core.app.ActivityCompat;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -78,8 +82,6 @@ public class AudioSource {
     }
 
     private void start() {
-        // FYI: the current thread holds lockAudioReceivers.
-        // Use VOICE_COMMUNICATION to filter out audio coming from the speakers
         final AudioRecord audioRecord =
                 new AudioRecord(
                         MediaRecorder.AudioSource.VOICE_COMMUNICATION,

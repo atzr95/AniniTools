@@ -32,29 +32,54 @@ fun showCircleReveal(view: View,buttonState: ButtonState){
     }
 }
 
-@BindingAdapter("app:buttonState")
-fun showFlashButtonState(flashButton: FlashMorphView, buttonState: ButtonState){
+@BindingAdapter("app:buttonState", "app:screenFlashEnabled", "app:flashColor", requireAll = false)
+fun showFlashButtonState(flashButton: FlashMorphView, buttonState: ButtonState, screenFlashEnabled: Boolean = false, flashColor: Int? = null){
 
         when(buttonState) {
             ButtonState.ON ->{
                 flashButton.morphOn()
-                flashButton.background = ContextCompat.getDrawable(flashButton.context!!, R.drawable.roundedcorneron)
+                // Always use the original drawable to preserve morphing
+                val drawable = ContextCompat.getDrawable(flashButton.context!!, R.drawable.roundedcorneron)
+                flashButton.background = drawable
+                
+                if (screenFlashEnabled && flashColor != null) {
+                    // Tint the background to a darker version of the flash color
+                    val darkerColor = darkenColor(flashColor, 0.3f)
+                    drawable?.setTint(darkerColor)
+                    
+                    // Also tint the icon to a slightly darker version
+                    val iconColor = darkenColor(flashColor, 0.2f)
+                    flashButton.setColorFilter(iconColor)
+                } else {
+                    // Clear any tints to use original colors
+                    drawable?.setTintList(null)
+                    flashButton.clearColorFilter()
+                }
         }
             ButtonState.OFF ->{
                 flashButton.morphOff()
-                flashButton.background = ContextCompat.getDrawable(flashButton.context!!, R.drawable.roundedcorneroff)
+                // Always use the original drawable to preserve morphing
+                val drawable = ContextCompat.getDrawable(flashButton.context!!, R.drawable.roundedcorneroff)
+                flashButton.background = drawable
+                
+                // Clear any tints and color filters for OFF state
+                drawable?.setTintList(null)
+                flashButton.clearColorFilter()
             }
             ButtonState.START ->{
+                flashButton.clearColorFilter()
                 //do nothing
             }
         }
 }
 
-@BindingAdapter("app:customVisibility")
-fun setVisibility(view : View, visible : Boolean) {
-    view.visibility = if (visible) View.VISIBLE else View.GONE
+// Helper function to darken a color
+private fun darkenColor(color: Int, factor: Float): Int {
+    val hsv = FloatArray(3)
+    android.graphics.Color.colorToHSV(color, hsv)
+    hsv[2] *= (1f - factor) // Reduce the brightness
+    return android.graphics.Color.HSVToColor(hsv)
 }
-
 
 @BindingAdapter(value=["app:mainView","app:expandedView","app:morphButton","app:onExpand"],requireAll = true)
 fun setExpandCard(view: CardView, mainView: LinearLayout, expandedView: LinearLayout, button: ExpandMorphView, expand: ExpandState) {
@@ -72,6 +97,9 @@ fun setExpandCard(view: CardView, mainView: LinearLayout, expandedView: LinearLa
         ExpandState.START ->{
             //do nothing
         }
+
+        ExpandState.PERMISSION -> {}
+        ExpandState.ENABLED -> {}
     }
 }
 

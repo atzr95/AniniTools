@@ -12,7 +12,7 @@ import kotlin.math.sqrt
 class MagneticLiveData(context: Context) : LiveData<Float>(), SensorEventListener {
 
     private val sensorManager: SensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
-    private var magneticSensor: Sensor
+    private var magneticSensor: Sensor?
 
     init {
         magneticSensor = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)

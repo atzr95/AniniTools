@@ -1,7 +1,7 @@
 <resources>
 
     <!-- Base application theme. -->
-    <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
+    <style name="AppTheme" parent="Theme.Material3.DynamicColors.Dark">
         <!-- Customize your theme here. -->
         <item name="colorPrimary">@color/colorPrimary</item>
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
@@ -22,6 +22,9 @@
         <item name="northMarkColor">#FF0000</item>
         <item name="accelerometerGridColor">@color/blue_1</item>
         <item name="accelerometerBallColor">@color/blue_1</item>
+        
+        <!-- Material 3 button styles -->
+        <item name="materialButtonStyle">@style/Widget.Material3.Button.TonalButton</item>
     </style>
 
     <style name="AppTheme.NoActionBar">
@@ -29,12 +32,23 @@
         <item name="windowNoTitle">true</item>
     </style>
 
-    <style name="Splash" parent="Theme.AppCompat.Light.NoActionBar">
+    <style name="Splash" parent="Theme.Material3.DynamicColors.DayNight.NoActionBar">
         <item name="android:windowBackground">@drawable/splash_background</item>
     </style>
 
     <style name="BottomNavigationViewTextStyle">
         <item name="android:fontFamily">@font/google_sans</item>
+        <item name="android:color">@color/colorAccent</item>
+            <item name="colorSecondaryContainer">@color/colorAccent</item>
+    </style>
+
+    <!-- Material 3 Concert Mode Button Style -->
+    <style name="ConcertModeButton" parent="Widget.Material3.Button.TonalButton">
+        <item name="android:textSize">16sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="cornerRadius">12dp</item>
+        <item name="iconSize">24dp</item>
+        <item name="iconGravity">textStart</item>
     </style>
 
 </resources>

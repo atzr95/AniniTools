@@ -39,6 +39,7 @@ class MainActivity : AppCompatActivity() {
         val hasGPS = manager.hasSystemFeature(PackageManager.FEATURE_LOCATION_GPS)
         val hasPressure = manager.hasSystemFeature(PackageManager.FEATURE_SENSOR_BAROMETER)
         val hasSound = manager.hasSystemFeature(PackageManager.FEATURE_MICROPHONE)
+        val hasGyroscope = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE) != null
 
         prefs.sensorAccelerometer = hasAccelerometer
         prefs.sensorAmbientTemp = hasAmbientTemp
@@ -49,14 +50,20 @@ class MainActivity : AppCompatActivity() {
         prefs.sensorGPS = hasGPS
         prefs.sensorPressure = hasPressure
         prefs.sensorSound = hasSound
+        prefs.sensorGyroscope = hasGyroscope
     }
 
-    override fun onRestoreInstanceState(
-        savedInstanceState: Bundle?,
-        persistentState: PersistableBundle?
-    ) {
-        super.onRestoreInstanceState(savedInstanceState, persistentState)
+    override fun onRestoreInstanceState(savedInstanceState: Bundle) {
+        super.onRestoreInstanceState(savedInstanceState)
         setupBottomNavigationBar()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Ensure navigation is properly set up when app resumes
+        if (currentNavController == null) {
+            setupBottomNavigationBar()
+        }
     }
 
     /**

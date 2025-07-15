@@ -49,7 +49,7 @@ class BatteryLiveData(application: Application) : LiveData<List<String>>(){
                         4 -> chargingstate = "Not Charging"
                         5 -> chargingstate = "Battery Full"
                     }
-                    value = mutableListOf(level,voltage,temperature.toString(),chargingstate,technology,getBatteryCapacity(_context).toString())
+                    value = mutableListOf(level,voltage,temperature.toString(), chargingstate, technology.toString(), getBatteryCapacity(_context).toString())
                 }
             }
 

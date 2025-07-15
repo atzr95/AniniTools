@@ -5,124 +5,286 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <data>
+        <import type="android.view.View"/>
         <variable
             name="viewmodel"
             type="anini.aninitools.ui.flashlight.FlashViewModel"/>
     </data>
 
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:id="@+id/flashlight_layout"
+    <androidx.coordinatorlayout.widget.CoordinatorLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="@color/colorPrimary">
 
-    <View
-        android:id="@+id/viewon"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:background="@color/flashOn"
-        android:visibility="invisible"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.0"
-        app:layout_constraintStart_toStartOf="parent"
-        app:circleReveal="@{viewmodel.buttonstate}"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.0"/>
+        <!-- Flash Effect Overlays -->
+        <View
+            android:id="@+id/viewon"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@color/flashOn"
+            android:visibility="invisible"
+            app:circleReveal="@{viewmodel.buttonstate}" />
 
-    <ImageButton
-        android:id="@+id/settings_button"
-        android:layout_width="24dp"
-        android:layout_height="24dp"
-        android:layout_marginTop="16dp"
-        android:visibility="invisible"
-        android:layout_marginEnd="8dp"
-        android:background="@drawable/ic_settings"
-        android:elevation="3dp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        <View
+            android:id="@+id/screenFlashOverlay"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="@{viewmodel.screenFlashActive ? View.VISIBLE : View.GONE}"
+            app:colorPickerBackground="@{viewmodel.screenFlashColor}" />
 
-    <SeekBar
-        android:id="@+id/seekBar"
-        android:layout_width="0dp"
-        android:layout_height="48dp"
-        android:layout_marginStart="8dp"
-        android:layout_marginTop="16dp"
-        android:layout_marginEnd="8dp"
-        android:progressDrawable="@drawable/seekbar_style"
-        android:thumb="@drawable/seekbar_thumb"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/settings_button"
-        android:onProgressChanged="@{(sb,value,fromuser) -> viewmodel.setStrobeTime(value)}"/>
+        <!-- Main Content ScrollView -->
+        <androidx.core.widget.NestedScrollView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fillViewport="true"
+            android:scrollbars="none">
 
-    <Button
-        android:id="@+id/screenlightbutton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginEnd="8dp"
-        android:layout_marginBottom="8dp"
-        android:text="Screen Light"
-        android:visibility="invisible"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+            <androidx.constraintlayout.widget.ConstraintLayout
+                android:id="@+id/flashlight_layout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="24dp"
+                android:paddingTop="32dp"
+                android:paddingEnd="24dp"
+                android:paddingBottom="32dp">
 
-    <Button
-        android:id="@+id/morsebutton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="8dp"
-        android:layout_marginBottom="8dp"
-        android:text="Custom Strobe"
-        android:visibility="invisible"
-        app:layout_constraintBottom_toBottomOf="@+id/viewon"
-        app:layout_constraintStart_toStartOf="parent" />
+                <!-- Main Flash Button - Fills Available Space -->
+                <anini.aninitools.ui.flashlight.FlashMorphView
+                    android:id="@+id/flashbutton"
+                    android:layout_width="200dp"
+                    android:layout_height="200dp"
+                    android:layout_marginTop="32dp"
+                    android:layout_marginBottom="8dp"
+                    android:background="@drawable/roundedcorneroff"
+                    android:elevation="16dp"
+                    android:padding="24dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/ic_flashlight_on"
+                    android:onClick="@{() -> viewmodel.enableFlash()}"
+                    app:buttonState="@{viewmodel.buttonstate}"
+                    app:screenFlashEnabled="@{viewmodel.screenFlashEnabled}"
+                    app:flashColor="@{viewmodel.screenFlashColor}"
+                    app:layout_constraintBottom_toTopOf="@+id/controlsCard"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toTopOf="parent" />
 
-    <Switch
-        android:id="@+id/screenlightswitch"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="8dp"
-        android:layout_marginTop="8dp"
-        android:layout_marginEnd="8dp"
-        android:text="Use Screen Light  "
-        android:visibility="invisible"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/flashbutton" />
+                <!-- Controls Section -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/controlsCard"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="16dp"
+                    android:visibility="@{viewmodel.screenFlashActive ? View.GONE : View.VISIBLE}"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="8dp"
+                    app:cardBackgroundColor="@color/colorSurface"
+                    app:layout_constraintBottom_toTopOf="@+id/concertModeButton"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintStart_toStartOf="parent">
 
-    <Switch
-        android:id="@+id/strobe_switch"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="8dp"
-        android:layout_marginTop="8dp"
-        android:layout_marginEnd="8dp"
-        android:text="Use Custom Strobing  "
-        android:visibility="invisible"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/screenlightswitch" />
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="24dp">
 
-    <anini.aninitools.ui.flashlight.FlashMorphView
-        android:id="@+id/flashbutton"
-        android:layout_width="200dp"
-        android:layout_height="200dp"
-        android:layout_marginStart="8dp"
-        android:layout_marginTop="8dp"
-        android:layout_marginEnd="8dp"
-        android:layout_marginBottom="8dp"
-        android:background="@drawable/roundedcorneroff"
-        android:elevation="0dp"
-        android:padding="20dp"
-        android:scaleType="fitCenter"
-        android:src="@drawable/ic_flashlight_on"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="@+id/viewon"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        android:onClick="@{() -> viewmodel.enableFlash()}"
-        app:buttonState="@{viewmodel.buttonstate}"/>
-    </androidx.constraintlayout.widget.ConstraintLayout>
+                        <!-- Strobe Speed Section -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:visibility="@{viewmodel.screenFlashEnabled ? View.GONE : View.VISIBLE}">
 
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:layout_marginBottom="16dp">
+
+                                <ImageView
+                                    android:layout_width="24dp"
+                                    android:layout_height="24dp"
+                                    android:src="@drawable/ic_toggle"
+                                    android:layout_marginEnd="12dp"
+                                    app:tint="@color/colorOnSurface" />
+
+                                <TextView
+                                    android:id="@+id/strobeLabel"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="@string/strobe_speed_control"
+                                    android:textColor="@color/colorOnSurface"
+                                    android:textSize="16sp"
+                                    android:textStyle="bold" />
+
+                            </LinearLayout>
+
+                            <SeekBar
+                                android:id="@+id/seekBar"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginBottom="8dp"
+                                android:progressDrawable="@drawable/seekbar_style"
+                                android:thumb="@drawable/seekbar_thumb"
+                                android:onProgressChanged="@{(sb,value,fromuser) -> viewmodel.setStrobeTime(value)}"/>
+
+                            <LinearLayout
+                                android:id="@+id/strobeLabels"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal">
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="@string/strobe_speed_slow"
+                                    android:textColor="@color/colorOnSurfaceVariant"
+                                    android:textSize="12sp"
+                                    android:gravity="start" />
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="@string/strobe_speed_fast"
+                                    android:textColor="@color/colorOnSurfaceVariant"
+                                    android:textSize="12sp"
+                                    android:gravity="end" />
+                            </LinearLayout>
+
+                        </LinearLayout>
+
+                        <!-- Divider -->
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="1dp"
+                            android:layout_marginTop="24dp"
+                            android:layout_marginBottom="24dp"
+                            android:background="@color/colorOutline"
+                            android:alpha="0.12"
+                            android:visibility="@{viewmodel.screenFlashEnabled ? View.GONE : View.VISIBLE}" />
+
+                        <!-- Screen Flash Section -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical">
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:layout_marginBottom="16dp">
+
+                                <ImageView
+                                    android:layout_width="24dp"
+                                    android:layout_height="24dp"
+                                    android:src="@drawable/ic_wtflight"
+                                    android:layout_marginEnd="12dp"
+                                    app:tint="@color/colorOnSurface" />
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="@string/enable_screen_flash"
+                                    android:textColor="@color/colorOnSurface"
+                                    android:textSize="16sp"
+                                    android:textStyle="bold" />
+
+                                <com.google.android.material.switchmaterial.SwitchMaterial
+                                    android:id="@+id/screenlightswitch"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:onCheckedChanged="@{(sw, checked) -> viewmodel.setScreenFlashEnabled(checked)}" 
+                                    app:thumbTint="@color/colorPrimary"
+                                    app:trackTint="@color/colorPrimaryVariant"/>
+
+                            </LinearLayout>
+
+                            <!-- Color Picker Section -->
+                            <com.google.android.material.card.MaterialCardView
+                                android:id="@+id/colorPickerCard"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:visibility="@{viewmodel.screenFlashEnabled ? View.VISIBLE : View.GONE}"
+                                app:cardCornerRadius="12dp"
+                                app:cardElevation="2dp"
+                                app:cardBackgroundColor="@color/colorSurfaceVariant"
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:foreground="?android:attr/selectableItemBackground"
+                                android:onClick="@{() -> viewmodel.openColorPicker()}">
+
+                                <LinearLayout
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:orientation="horizontal"
+                                    android:gravity="center_vertical"
+                                    android:padding="16dp">
+
+                                    <ImageView
+                                        android:layout_width="20dp"
+                                        android:layout_height="20dp"
+                                        android:src="@drawable/ic_settings"
+                                        android:layout_marginEnd="12dp"
+                                        app:tint="@color/colorOnSurface" />
+
+                                    <TextView
+                                        android:layout_width="0dp"
+                                        android:layout_height="wrap_content"
+                                        android:layout_weight="1"
+                                        android:text="@string/flash_color"
+                                        android:textColor="@color/colorOnSurface"
+                                        android:textSize="14sp" />
+
+                                    <androidx.cardview.widget.CardView
+                                        android:id="@+id/colorSwatchCard"
+                                        android:layout_width="32dp"
+                                        android:layout_height="32dp"
+                                        app:cardCornerRadius="16dp"
+                                        app:cardElevation="4dp">
+
+                                        <View
+                                            android:id="@+id/colorSwatchView"
+                                            android:layout_width="match_parent"
+                                            android:layout_height="match_parent"
+                                            app:colorPickerBackground="@{viewmodel.screenFlashColor}" />
+
+                                    </androidx.cardview.widget.CardView>
+
+                                </LinearLayout>
+                            </com.google.android.material.card.MaterialCardView>
+
+                        </LinearLayout>
+
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- Concert Mode Button -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/concertModeButton"
+                    style="@style/ConcertModeButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:onClick="@{() -> viewmodel.openConcertMode()}"
+                    android:paddingTop="16dp"
+                    android:paddingBottom="16dp"
+                    android:text="@string/concert_mode_title"
+                    android:visibility="@{viewmodel.screenFlashActive ? View.GONE : View.VISIBLE}"
+                    app:backgroundTint="@color/colorSecondary"
+                    app:icon="@drawable/ic_music"
+                    app:iconPadding="12dp"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintStart_toStartOf="parent" />
+
+            </androidx.constraintlayout.widget.ConstraintLayout>
+        </androidx.core.widget.NestedScrollView>
+    </androidx.coordinatorlayout.widget.CoordinatorLayout>
 </layout>

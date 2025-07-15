@@ -32,13 +32,14 @@ class SensorFragment : Fragment() {
     private val sounddBChartData = LineData().also { it.setValueTextColor(Color.WHITE) }
     private val soundPitchChartData = LineData().also { it.setValueTextColor(Color.WHITE) }
     private val linearAccChartData = LineData().also { it.setValueTextColor(Color.WHITE) }
+    private val gyroscopeChartData = LineData().also { it.setValueTextColor(Color.WHITE) }
 
     private lateinit var sensorViewModel: SensorViewModel
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        prefs = Prefs(activity!!.applicationContext)
+        prefs = Prefs(requireActivity().applicationContext)
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
@@ -92,6 +93,8 @@ class SensorFragment : Fragment() {
                             }
                         }
                     }
+
+                    true -> {}
                 }
                 sensorViewModel.onAudioPermissionResult(permission)
             }
@@ -109,6 +112,9 @@ class SensorFragment : Fragment() {
                     }
                     ExpandState.START -> {
                     }
+
+                    ExpandState.PERMISSION -> {}
+                    ExpandState.ENABLED -> {}
                 }
             }
         })
@@ -123,8 +129,9 @@ class SensorFragment : Fragment() {
                     ExpandState.OFF -> {
                         unsubscribeMagnetic()
                     }
-                    ExpandState.START -> {
-                    }
+                    ExpandState.START -> {}
+                    ExpandState.PERMISSION -> {}
+                    ExpandState.ENABLED -> {}
                 }
             }
         })
@@ -161,10 +168,14 @@ class SensorFragment : Fragment() {
                                                 }
                                             }
                                         }
+
+                                        true -> {}
                                     }
                                 }
                             })
                     }
+
+                    ExpandState.ENABLED -> {}
                 }
             }
         })
@@ -201,10 +212,14 @@ class SensorFragment : Fragment() {
                                                 }
                                             }
                                         }
+
+                                        true -> {}
                                     }
                                 }
                             })
                     }
+
+                    ExpandState.ENABLED -> {}
                 }
             }
         })
@@ -267,6 +282,28 @@ class SensorFragment : Fragment() {
                     }
                     ExpandState.START -> {
                     }
+
+                    ExpandState.PERMISSION -> {}
+                    ExpandState.ENABLED -> {}
+                }
+            }
+        })
+
+        sensorViewModel.expandGyroscope.observe(viewLifecycleOwner, Observer { expanded ->
+            expanded?.let {
+                when (expanded) {
+                    ExpandState.ON -> {
+                        setupLineChart(fragmentSensorBinding.gyroscopeGraph, gyroscopeChartData, "Gyroscope")
+                        subscribeGyroscope()
+                    }
+                    ExpandState.OFF -> {
+                        unsubscribeGyroscope()
+                    }
+                    ExpandState.START -> {
+                    }
+
+                    ExpandState.PERMISSION -> {}
+                    ExpandState.ENABLED -> {}
                 }
             }
         })
@@ -310,7 +347,9 @@ class SensorFragment : Fragment() {
     private fun subscribeLight() {
         sensorViewModel.lightDataRefresh()
         sensorViewModel.lightGraph.observeNonNull(this) { data ->
-            addEntry(fragmentSensorBinding.lightGraph, lightChartData, data)
+            if (data != null) {
+                addEntry(fragmentSensorBinding.lightGraph, lightChartData, data)
+            }
         }
     }
 
@@ -383,6 +422,24 @@ class SensorFragment : Fragment() {
         sensorViewModel.linearAccGraphSource()
         sensorViewModel.linearAccGraph.observeNonNull(this) { data ->
             addEntry(fragmentSensorBinding.linearAccGraph, linearAccChartData, data)
+        }
+    }
+
+    private fun unsubscribeGyroscope() {
+        sensorViewModel.gyroscopeGraph.removeSource(sensorViewModel.gyroscope)
+        fragmentSensorBinding.gyroscopeGraph.also {
+            it.data.clearValues()
+            gyroscopeChartData.clearValues()
+            it.notifyDataSetChanged()
+            it.clear()
+            it.invalidate()
+        }
+    }
+
+    private fun subscribeGyroscope() {
+        sensorViewModel.gyroscopeGraphSource()
+        sensorViewModel.gyroscopeGraph.observeNonNull(this) { data ->
+            addEntry(fragmentSensorBinding.gyroscopeGraph, gyroscopeChartData, data)
         }
     }
 

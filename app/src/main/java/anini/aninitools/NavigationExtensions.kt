@@ -65,6 +65,17 @@ fun BottomNavigationView.setupWithNavController(
     var selectedItemTag = graphIdToTagMap[this.selectedItemId]
     val firstFragmentTag = graphIdToTagMap[firstFragmentGraphId]
     var isOnFirstFragment = selectedItemTag == firstFragmentTag
+    
+    // If no item is selected or invalid selection, default to first item
+    if (selectedItemTag == null) {
+        this.selectedItemId = firstFragmentGraphId
+        selectedItemTag = firstFragmentTag
+        isOnFirstFragment = true
+        val firstFragment = fragmentManager.findFragmentByTag(firstFragmentTag) as NavHostFragment?
+        firstFragment?.let { 
+            selectedNavController.value = it.navController
+        }
+    }
 
     // When a navigation item is selected
     setOnNavigationItemSelectedListener { item ->
@@ -86,17 +97,20 @@ fun BottomNavigationView.setupWithNavController(
                     // to it, creating the fixed started destination.
                     fragmentManager.beginTransaction()
                         .setCustomAnimations(
-                            R.anim.nav_default_enter_anim,
-                            R.anim.nav_default_exit_anim,
-                            R.anim.nav_default_pop_enter_anim,
-                            R.anim.nav_default_pop_exit_anim)
+                            android.R.anim.fade_in,
+                            android.R.anim.fade_out,
+                            android.R.anim.fade_in,
+                            android.R.anim.fade_out)
                         .attach(selectedFragment)
                         .setPrimaryNavigationFragment(selectedFragment)
                         .apply {
                             // Detach all other Fragments
                             graphIdToTagMap.forEach { _, fragmentTagIter ->
                                 if (fragmentTagIter != newlySelectedItemTag) {
-                                    detach(fragmentManager.findFragmentByTag(firstFragmentTag)!!)
+                                    val fragmentToDetach = fragmentManager.findFragmentByTag(fragmentTagIter)
+                                    if (fragmentToDetach != null) {
+                                        detach(fragmentToDetach)
+                                    }
                                 }
                             }
                         }
@@ -132,6 +146,13 @@ fun BottomNavigationView.setupWithNavController(
             if (controller.currentDestination == null) {
                 controller.navigate(controller.graph.id)
             }
+        }
+        
+        // Ensure the correct fragment is shown when back stack changes
+        val currentSelectedTag = graphIdToTagMap[this.selectedItemId]
+        val currentFragment = fragmentManager.findFragmentByTag(currentSelectedTag)
+        if (currentFragment != null && !currentFragment.isDetached) {
+            selectedNavController.value = (currentFragment as NavHostFragment).navController
         }
     }
     return selectedNavController
@@ -172,7 +193,7 @@ private fun BottomNavigationView.setupItemReselected(
         val navController = selectedFragment.navController
         // Pop the back stack to the start destination of the current navController graph
         navController.popBackStack(
-            navController.graph.startDestination, false
+            navController.graph.startDestinationId, false
         )
     }
 }
@@ -183,7 +204,7 @@ private fun detachNavHostFragment(
 ) {
     fragmentManager.beginTransaction()
         .detach(navHostFragment)
-        .commitNow()
+        .commitNowAllowingStateLoss()
 }
 
 private fun attachNavHostFragment(
@@ -198,8 +219,7 @@ private fun attachNavHostFragment(
                 setPrimaryNavigationFragment(navHostFragment)
             }
         }
-        .commitNow()
-
+        .commitNowAllowingStateLoss()
 }
 
 private fun obtainNavHostFragment(
@@ -216,7 +236,7 @@ private fun obtainNavHostFragment(
     val navHostFragment = NavHostFragment.create(navGraphId)
     fragmentManager.beginTransaction()
         .add(containerId, navHostFragment, fragmentTag)
-        .commitNow()
+        .commitNowAllowingStateLoss()
     return navHostFragment
 }
 

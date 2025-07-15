@@ -138,7 +138,7 @@
             android:fontFamily="@font/google_sans"
             android:gravity="center_horizontal"
             android:orientation="horizontal"
-            android:text="@{@string/sensor_magnetic_data(Float.toString(viewmodel.magnetic))}"
+                                        android:text="@{@string/sensor_magnetic_data(viewmodel.magnetic != null ? String.valueOf(viewmodel.magnetic) : `0.0`)}"
             android:textAlignment="center"
             android:textColor="@color/white"
             app:layout_constraintBottom_toBottomOf="parent"
