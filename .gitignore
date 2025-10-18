@@ -16,3 +16,15 @@
 /private_key.pepk
 /app/google-services.json
 /app/release/
+/.idea/AndroidProjectSystem.xml
+/anini.jks
+/.idea/compiler.xml
+/.idea/deploymentTargetSelector.xml
+/.idea/deviceManager.xml
+/feature_graphic.png
+/.idea/jarRepositories.xml
+/.idea/kotlinc.xml
+/.idea/migrations.xml
+/.idea/other.xml
+/.idea/runConfigurations.xml
+/upload_certificate.pem

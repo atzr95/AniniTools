@@ -168,23 +168,18 @@ class FlashFragment : Fragment() {
         // Create full-screen dialog (no orientation change yet)
         concertModeDialog = Dialog(requireContext(), android.R.style.Theme_Black_NoTitleBar_Fullscreen).apply {
             requestWindowFeature(Window.FEATURE_NO_TITLE)
-            
-            // Hide system UI for true full-screen experience
+
+            // Configure window for proper keyboard handling
             window?.apply {
+                // IMPORTANT: Set soft input mode FIRST before other flags
+                setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+
+                // Keep screen on but avoid FLAG_LAYOUT_NO_LIMITS which prevents resizing
                 setFlags(
-                    WindowManager.LayoutParams.FLAG_FULLSCREEN or
-                    WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-                    WindowManager.LayoutParams.FLAG_FULLSCREEN or
-                    WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+                    WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
+                    WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
                 )
-                
-                // Set soft input mode to adjust resize for keyboard handling
-                //setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
-                
+
                 // Hide navigation bar and status bar
                 decorView.systemUiVisibility = (
                     View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
@@ -228,24 +223,26 @@ class FlashFragment : Fragment() {
         val startButton = view.findViewById<View>(R.id.startConcertButton)
         val stopButton = view.findViewById<View>(R.id.stopConcertButton)
         val closeButton = view.findViewById<View>(R.id.closeConcertButton)
-        val closeControlsButton = view.findViewById<View>(R.id.closeControlsButton)
-        val controlPanel = view.findViewById<View>(R.id.controlPanel)
+        val advancedSettingsPanel = view.findViewById<View>(R.id.advancedSettingsPanel)
+        val toggleSettingsButton = view.findViewById<com.google.android.material.button.MaterialButton>(R.id.toggleSettingsButton)
+        val closeSettingsButton = view.findViewById<View>(R.id.closeSettingsButton)
         val tapOverlay = view.findViewById<View>(R.id.tapToHideOverlay)
         val textColorCard = view.findViewById<MaterialCardView>(R.id.textColorCard)
         val backgroundColorCard = view.findViewById<MaterialCardView>(R.id.backgroundColorCard)
         val textColorSwatch = view.findViewById<View>(R.id.textColorSwatch)
         val backgroundColorSwatch = view.findViewById<View>(R.id.backgroundColorSwatch)
         val mainLayout = view.findViewById<View>(R.id.concert_mode_layout)
-        val landscapeInstruction = view.findViewById<View>(R.id.landscapeInstruction)
-        
+        val controlBarScrollView = view.findViewById<View>(R.id.controlBarScrollView)
+
         // Return early if essential views are null
         if (rollingTextDisplay == null || textInput == null || speedSlider == null || blinkSpeedSlider == null || textSizeSlider == null) {
             return
         }
-        
+
         var blinkingRunnable: Runnable? = null
         var isBlinking = false
-        var isControlsVisible = true
+        var isSettingsPanelVisible = false
+        var isControlBarVisible = true
         var currentTextColor = Color.WHITE
         var currentBackgroundColor = Color.BLACK
         val blinkHandler = android.os.Handler(android.os.Looper.getMainLooper())
@@ -398,63 +395,61 @@ class FlashFragment : Fragment() {
                 .show()
         }
         
-        // Toggle controls visibility
-        val toggleControls = {
-            isControlsVisible = !isControlsVisible
-            controlPanel?.visibility = if (isControlsVisible) View.VISIBLE else View.GONE
-            // Only show instruction if controls are visible and animations are not running
-            if (isControlsVisible && blinkingRunnable == null) {
-                landscapeInstruction?.visibility = View.VISIBLE
-            } else {
-                landscapeInstruction?.visibility = View.GONE
-            }
+        // Toggle settings panel visibility
+        val toggleSettingsPanel = {
+            isSettingsPanelVisible = !isSettingsPanelVisible
+            advancedSettingsPanel?.visibility = if (isSettingsPanelVisible) View.VISIBLE else View.GONE
+
+            // Update button text
+            val buttonText = if (isSettingsPanelVisible) "Hide Settings" else "Settings"
+            toggleSettingsButton?.text = buttonText
         }
         
         // Set up buttons
-        startButton?.setOnClickListener { 
+        startButton?.setOnClickListener {
             // Hide keyboard when starting concert mode
             hideKeyboard(view, textInput)
-            
+
+            // Hide entire control bar and settings panel when starting
+            isControlBarVisible = false
+            isSettingsPanelVisible = false
+            controlBarScrollView?.visibility = View.GONE
+            advancedSettingsPanel?.visibility = View.GONE
+
             // Force landscape orientation when concert mode starts
             if (isAdded && activity != null) {
                 requireActivity().requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
             }
-            
+
             startRollingText()
-            
-            // Immediately hide controls and instruction when starting
-            isControlsVisible = false
-            controlPanel?.visibility = View.GONE
-            landscapeInstruction?.visibility = View.GONE
         }
-        stopButton?.setOnClickListener { 
+        stopButton?.setOnClickListener {
             stopRollingText()
-            
-            // Show controls and instruction again when stopped
-            isControlsVisible = true
-            controlPanel?.visibility = View.VISIBLE
-            landscapeInstruction?.visibility = View.VISIBLE
-            
+
             // Allow orientation changes when stopped
             if (isAdded && activity != null) {
                 requireActivity().requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
             }
         }
-        closeButton?.setOnClickListener { 
+        closeButton?.setOnClickListener {
             // Stop any running animation and restore orientation
             stopRollingText()
             if (isAdded && activity != null) {
                 requireActivity().requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
             }
-            concertModeDialog?.dismiss() 
+            concertModeDialog?.dismiss()
         }
-        
-        // X button to close controls - easier way to hide control panel
-        closeControlsButton?.setOnClickListener {
-            // Hide controls without starting animation
-            isControlsVisible = false
-            controlPanel?.visibility = View.GONE
-            landscapeInstruction?.visibility = View.GONE
+
+        // Settings toggle button
+        toggleSettingsButton?.setOnClickListener {
+            toggleSettingsPanel()
+        }
+
+        // Close settings button (X in settings panel)
+        closeSettingsButton?.setOnClickListener {
+            isSettingsPanelVisible = false
+            advancedSettingsPanel?.visibility = View.GONE
+            toggleSettingsButton?.text = "Settings"
         }
         
         // Color picker buttons with null checks
@@ -496,16 +491,33 @@ class FlashFragment : Fragment() {
             }
         }
         
-        // Tap anywhere to toggle controls
-        tapOverlay?.setOnClickListener { 
-            toggleControls()
+        // Tap anywhere to toggle entire control bar
+        tapOverlay?.setOnClickListener {
+            isControlBarVisible = !isControlBarVisible
+            controlBarScrollView?.visibility = if (isControlBarVisible) View.VISIBLE else View.GONE
+
+            // Also hide settings panel when hiding control bar
+            if (!isControlBarVisible) {
+                isSettingsPanelVisible = false
+                advancedSettingsPanel?.visibility = View.GONE
+            }
+
             hideKeyboard(view, textInput)
         }
-        rollingTextDisplay?.setOnClickListener { 
-            toggleControls()
+        // Clicking on the rolling text also toggles control bar
+        rollingTextDisplay?.setOnClickListener {
+            isControlBarVisible = !isControlBarVisible
+            controlBarScrollView?.visibility = if (isControlBarVisible) View.VISIBLE else View.GONE
+
+            // Also hide settings panel when hiding control bar
+            if (!isControlBarVisible) {
+                isSettingsPanelVisible = false
+                advancedSettingsPanel?.visibility = View.GONE
+            }
+
             hideKeyboard(view, textInput)
         }
-        
+
         // Hide keyboard when tapping on main concert layout
         mainLayout?.setOnClickListener {
             hideKeyboard(view, textInput)
