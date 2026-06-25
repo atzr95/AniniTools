@@ -1,30 +1,79 @@
-*.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
 .DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
-/aninitools.jks
-/private_key.pepk
-/app/google-services.json
-/app/release/
-/.idea/AndroidProjectSystem.xml
-/anini.jks
-/.idea/compiler.xml
-/.idea/deploymentTargetSelector.xml
-/.idea/deviceManager.xml
-/feature_graphic.png
-/.idea/jarRepositories.xml
-/.idea/kotlinc.xml
-/.idea/migrations.xml
-/.idea/other.xml
-/.idea/runConfigurations.xml
-/upload_certificate.pem
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Secrets - NEVER commit these (match anywhere in tree, not just android/)
+*.jks
+*.keystore
+*.pepk
+*.pem
+*.p12
+*.p8
+key.properties
+**/google-services.json
+**/GoogleService-Info.plist
+lib/firebase_options.dart
+firebase.json
+.firebaserc
+*.env
+.env*
+KEYSTORE_SETUP_COMPLETE.md
+PASSWORD_RECOVERY_GUIDE.md
+
+# Internal notes (Claude/local planning docs + privacy source duplicates)
+claudedocs/
+COMPASS_IMPLEMENTATION.md
+IMPLEMENTATION_STATUS.md
+PRIVACY_POLICY.html
+PRIVACY_POLICY.md
+scripts/
+
+# Release build artifacts (large binaries, signed bundles)
+release/
+*.aab
+*.apk
+
+# Store/marketing screenshots (kept local, not in repo)
+screenshot/
