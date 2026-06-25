@@ -48,6 +48,19 @@ Stop downloading ten single-purpose apps. AniniTools turns the sensors already i
 
 ---
 
+## See it in action
+
+<div align="center">
+
+| | | |
+|:-:|:-:|:-:|
+| <img src="screenshot/android/Screenshot_20251107_212401.png" width="240"/> | <img src="screenshot/android/Screenshot_20251107_212424.png" width="240"/> | <img src="screenshot/android/Screenshot_20251107_212442.png" width="240"/> |
+| <img src="screenshot/android/Screenshot_20251107_212507.png" width="240"/> | <img src="screenshot/android/Screenshot_20251107_212612.png" width="240"/> | <img src="screenshot/android/Screenshot_20251107_212627.png" width="240"/> |
+
+</div>
+
+---
+
 ## Everything inside
 
 | Lights & Show | Measure & Build | Sensor Lab |

@@ -75,5 +75,7 @@ release/
 *.aab
 *.apk
 
-# Store/marketing screenshots (kept local, not in repo)
-screenshot/
+# Store/marketing screenshots — keep android (used in README), ignore the rest
+screenshot/ipad/
+screenshot/iphone/
+screenshot/.DS_Store
