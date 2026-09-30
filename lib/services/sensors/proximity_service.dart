@@ -10,24 +10,20 @@ class ProximityService {
   ProximityService._internal();
 
   StreamSubscription? _subscription;
-  final _controller = StreamController<bool>.broadcast();
+  // Controller owns the platform subscription — see AccelerometerService.
+  late final _controller = StreamController<bool>.broadcast(
+    onListen: _start,
+    onCancel: _stop,
+  );
 
   Stream<bool> get stream => _controller.stream;
-  bool? _isNear;
 
-  /// Start listening to proximity sensor
-  Future<void> startListening() async {
-    // Stop any existing subscription first
-    if (_subscription != null) {
-      _subscription!.cancel();
-      _subscription = null;
-    }
-
+  void _start() {
     try {
       _subscription = ProximitySensor.events.listen(
         (event) {
-          _isNear = event > 0; // ProximitySensor returns distance, convert to near/far
-          _controller.add(_isNear!);
+          // ProximitySensor returns distance, convert to near/far
+          _controller.add(event > 0);
         },
         onError: (error) {
           debugPrint('Proximity sensor error: $error');
@@ -38,15 +34,8 @@ class ProximityService {
     }
   }
 
-  /// Stop listening to proximity sensor
-  void stopListening() {
+  void _stop() {
     _subscription?.cancel();
     _subscription = null;
-  }
-
-  /// Cleanup
-  void dispose() {
-    stopListening();
-    _controller.close();
   }
 }

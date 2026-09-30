@@ -1,0 +1,2 @@
+app_identifier(ENV["IOS_BUNDLE_ID"] || "anini.aninitools")
+team_id(ENV["APPLE_TEAM_ID"] || "F85Z4NV7U9")

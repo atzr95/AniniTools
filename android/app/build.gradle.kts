@@ -14,15 +14,11 @@ plugins {
 android {
     namespace = "anini.aninitools"
     compileSdk = 36  // Required by proximity_sensor plugin
-    ndkVersion = "27.0.12077973"  // Required by multiple plugins, 16KB compliant
+    ndkVersion = "28.2.13676358"  // Required by jni plugin, 16KB compliant
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
-    }
-
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_11.toString()
     }
 
     defaultConfig {
@@ -56,9 +52,22 @@ android {
         release {
             // Use release signing configuration for Play Store uploads
             signingConfig = signingConfigs.getByName("release")
-            isMinifyEnabled = false
+            // R8: removes unused Java/Kotlin code (~4.4 MB smaller APK).
+            // Android-side crash traces are obfuscated in Crashlytics unless the
+            // Crashlytics Gradle plugin uploads the mapping file. Dart traces are unaffected.
+            // Keep rules for Firebase are in proguard-rules.pro.
+            isMinifyEnabled = true
+            // Off on purpose: the AGP 9 resource shrinker deletes Crashlytics' RequireBuildId
+            // flag (found by name), and the app then crashes at launch. It only saved ~250 KB.
             isShrinkResources = false
         }
+    }
+}
+
+// Replaces the removed android { kotlinOptions { jvmTarget } } (Kotlin 2.4 / AGP 9).
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11
     }
 }
 

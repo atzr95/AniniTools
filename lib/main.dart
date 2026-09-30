@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -16,10 +17,11 @@ import 'views/tools/vibration_analyzer_screen.dart';
 import 'views/tools/accelerometer_screen.dart';
 import 'viewmodels/sensor_viewmodel.dart';
 
-/// Filter errors to exclude expected sensor unavailability issues
-bool _shouldReportError(dynamic error, StackTrace? stack) {
+/// Filter errors to exclude expected sensor unavailability issues.
+/// Matches the error message only. The stack text is not checked: it holds
+/// file names like sensor_viewmodel.dart, which would hide real crashes there.
+bool _shouldReportError(dynamic error) {
   final errorString = error.toString().toLowerCase();
-  final stackString = stack?.toString().toLowerCase() ?? '';
 
   // List of patterns to ignore (sensor-related errors)
   final ignoredPatterns = [
@@ -31,7 +33,6 @@ bool _shouldReportError(dynamic error, StackTrace? stack) {
     'gyroscope',
     'accelerometer',
     'proximity',
-    'light sensor',
     'pressure',
     'barometer',
     'location service',
@@ -40,7 +41,7 @@ bool _shouldReportError(dynamic error, StackTrace? stack) {
 
   // Check if error matches any ignored patterns
   for (final pattern in ignoredPatterns) {
-    if (errorString.contains(pattern) || stackString.contains(pattern)) {
+    if (errorString.contains(pattern)) {
       return false; // Don't report this error
     }
   }
@@ -61,15 +62,20 @@ void main() async {
 
   // Initialize Firebase Crashlytics with error filtering
   FlutterError.onError = (errorDetails) {
+    // This handler replaces Flutter's default, which is what prints errors.
+    // In debug builds, print them again so layout overflows etc. stay visible.
+    if (kDebugMode) FlutterError.presentError(errorDetails);
     // Filter out sensor-related errors
-    if (_shouldReportError(errorDetails.exception, errorDetails.stack)) {
+    if (_shouldReportError(errorDetails.exception)) {
       FirebaseCrashlytics.instance.recordFlutterFatalError(errorDetails);
     }
   };
 
   // Pass all uncaught asynchronous errors to Crashlytics with filtering
   PlatformDispatcher.instance.onError = (error, stack) {
-    if (_shouldReportError(error, stack)) {
+    // Returning true below marks the error handled, which hides it. Print it in debug builds.
+    if (kDebugMode) debugPrint('Uncaught async error: $error\n$stack');
+    if (_shouldReportError(error)) {
       FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
     }
     return true;
@@ -97,75 +103,36 @@ class AniniToolsApp extends StatelessWidget {
     return MaterialApp(
       title: 'AniniTools',
       debugShowCheckedModeBanner: false,
-      theme: _buildLightTheme(),
-      darkTheme: _buildDarkTheme(),
-      themeMode: Prefs().darkMode ? ThemeMode.dark : ThemeMode.light,
+      // Dark only — there is no theme toggle in the app.
+      theme: _buildTheme(),
       navigatorObservers: [
         FirebaseAnalyticsObserver(analytics: analytics),
       ],
       home: const HomeScreen(),
-      onGenerateRoute: (settings) {
-        // For tool routes, wrap them with the SensorViewModel from the previous screen
-        if (settings.name?.startsWith('/') ?? false) {
-          // Try to get SensorViewModel from previous context (if available)
-          return MaterialPageRoute(
-            settings: settings,
-            builder: (context) {
-              // Try to get existing SensorViewModel, or create a new one
-              SensorViewModel? viewModel;
-              try {
-                viewModel = Provider.of<SensorViewModel>(context, listen: false);
-              } catch (e) {
-                // If no provider exists, create a new instance
-                viewModel = SensorViewModel()..initialize();
-              }
-
-              return ChangeNotifierProvider.value(
-                value: viewModel,
-                child: _buildToolScreen(settings.name ?? '/'),
-              );
-            },
-          );
-        }
-        return null;
+      routes: {
+        '/spirit-level': (_) => _withSensors(const SpiritLevelScreen()),
+        '/metal-detector': (_) => _withSensors(const MetalDetectorScreen()),
+        '/decibel-meter': (_) => _withSensors(const DecibelMeterScreen()),
+        '/altitude-calculator': (_) =>
+            _withSensors(const AltitudeCalculatorScreen()),
+        '/vibration-analyzer': (_) =>
+            _withSensors(const VibrationAnalyzerScreen()),
+        '/g-force-meter': (_) => _withSensors(const AccelerometerScreen()),
       },
     );
   }
 
-  /// Build the appropriate tool screen based on route name
-  static Widget _buildToolScreen(String routeName) {
-    switch (routeName) {
-      case '/spirit-level':
-        return const SpiritLevelScreen();
-      case '/metal-detector':
-        return const MetalDetectorScreen();
-      case '/decibel-meter':
-        return const DecibelMeterScreen();
-      case '/altitude-calculator':
-        return const AltitudeCalculatorScreen();
-      case '/vibration-analyzer':
-        return const VibrationAnalyzerScreen();
-      case '/g-force-meter':
-        return const AccelerometerScreen();
-      default:
-        return const Scaffold(
-          body: Center(child: Text('Screen not found')),
-        );
-    }
-  }
+  /// Every tool screen consumes SensorViewModel. `create:` (not `.value`) so
+  /// the view model is disposed when the route pops instead of leaking sensors.
+  /// Safe even though the Sensors screen stays mounted underneath: the sensor
+  /// services start on their first stream listener and stop on their last, so
+  /// disposing this view model only drops its own subscriptions.
+  static Widget _withSensors(Widget child) => ChangeNotifierProvider(
+        create: (_) => SensorViewModel()..initialize(),
+        child: child,
+      );
 
-  ThemeData _buildLightTheme() {
-    return ThemeData(
-      useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: Colors.blue,
-        brightness: Brightness.light,
-      ),
-      appBarTheme: const AppBarTheme(centerTitle: true, elevation: 0),
-    );
-  }
-
-  ThemeData _buildDarkTheme() {
+  ThemeData _buildTheme() {
     return ThemeData(
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(

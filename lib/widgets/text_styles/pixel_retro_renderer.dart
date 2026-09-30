@@ -2,38 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../data/bitmap_fonts.dart';
 import '../../models/text_style_config.dart';
-
-/// Pixel/Retro style text renderer.
-/// Renders text with blocky pixels like old CRT displays and retro games.
-class PixelRetroRenderer {
-  final PixelRetroConfig config;
-
-  PixelRetroRenderer({this.config = const PixelRetroConfig()});
-
-  Widget build({
-    required BuildContext context,
-    required String text,
-    required Color primaryColor,
-    List<Color>? gradientColors,
-    double fontSize = 48.0,
-    double? animationProgress,
-  }) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return CustomPaint(
-          size: Size(constraints.maxWidth, constraints.maxHeight),
-          painter: PixelRetroPainter(
-            text: text,
-            primaryColor: primaryColor,
-            gradientColors: gradientColors,
-            config: config,
-            animationProgress: animationProgress ?? 1.0,
-          ),
-        );
-      },
-    );
-  }
-}
+import 'gradient_color.dart';
 
 /// CustomPainter that renders text as blocky pixels with retro effects.
 class PixelRetroPainter extends CustomPainter {
@@ -41,14 +10,12 @@ class PixelRetroPainter extends CustomPainter {
   final Color primaryColor;
   final List<Color>? gradientColors;
   final PixelRetroConfig config;
-  final double animationProgress;
 
   PixelRetroPainter({
     required this.text,
     required this.primaryColor,
     this.gradientColors,
     required this.config,
-    this.animationProgress = 1.0,
   });
 
   @override
@@ -103,14 +70,11 @@ class PixelRetroPainter extends CustomPainter {
     for (int charIndex = 0; charIndex < text.length; charIndex++) {
       final char = text[charIndex];
 
-      // Calculate animation visibility (glitch effect)
-      final isVisible = _isCharVisible(charIndex);
-
       for (int row = 0; row < charHeight; row++) {
         for (int col = 0; col < charWidth; col++) {
           final isLit = BitmapFonts.isDotLit(char, row, col);
 
-          if (isLit && isVisible) {
+          if (isLit) {
             final pixelX = charStartX + col * scaledPixelSize;
             final pixelY = startY + row * scaledPixelSize;
 
@@ -119,7 +83,7 @@ class PixelRetroPainter extends CustomPainter {
             if (gradientColors != null && gradientColors!.length >= 2) {
               final gradientPos =
                   (charIndex * charWidth + col) / (textWidthPixels - 1);
-              pixelColor = _getGradientColor(gradientPos, gradientColors!);
+              pixelColor = getGradientColor(gradientPos, gradientColors!);
             } else {
               pixelColor = primaryColor;
             }
@@ -149,7 +113,7 @@ class PixelRetroPainter extends CustomPainter {
 
     // Draw scanlines overlay if enabled
     if (config.showScanlines) {
-      _drawScanlines(canvas, size, startY, scaledTextHeight);
+      _drawScanlines(canvas, size);
     }
   }
 
@@ -207,8 +171,7 @@ class PixelRetroPainter extends CustomPainter {
     );
   }
 
-  void _drawScanlines(
-      Canvas canvas, Size size, double textStartY, double textHeight) {
+  void _drawScanlines(Canvas canvas, Size size) {
     final scanlinePaint = Paint()
       ..style = PaintingStyle.fill
       ..color = Colors.black.withValues(alpha: config.scanlineOpacity);
@@ -243,139 +206,11 @@ class PixelRetroPainter extends CustomPainter {
     canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), paint);
   }
 
-  bool _isCharVisible(int charIndex) {
-    if (animationProgress >= 1.0 ||
-        config.animation == PixelAnimation.none) {
-      return true;
-    }
-
-    if (config.animation == PixelAnimation.glitch) {
-      // Random glitch effect based on animation progress
-      final threshold = (charIndex + 1) / text.length;
-      final random = math.sin(charIndex * 12.9898 + animationProgress * 78.233);
-      return animationProgress >= threshold || random > 0.3;
-    }
-
-    return true;
-  }
-
-  Color _getGradientColor(double position, List<Color> colors) {
-    if (colors.length < 2) return colors.first;
-    if (position <= 0) return colors.first;
-    if (position >= 1) return colors.last;
-
-    final scaledPos = position * (colors.length - 1);
-    final lowerIndex = scaledPos.floor();
-    final upperIndex = (lowerIndex + 1).clamp(0, colors.length - 1);
-    final t = scaledPos - lowerIndex;
-
-    return Color.lerp(colors[lowerIndex], colors[upperIndex], t)!;
-  }
-
   @override
   bool shouldRepaint(PixelRetroPainter oldDelegate) {
     return text != oldDelegate.text ||
         primaryColor != oldDelegate.primaryColor ||
         gradientColors != oldDelegate.gradientColors ||
-        config != oldDelegate.config ||
-        animationProgress != oldDelegate.animationProgress;
-  }
-}
-
-/// Widget wrapper for Pixel/Retro with optional animation
-class PixelRetroText extends StatefulWidget {
-  final String text;
-  final Color primaryColor;
-  final List<Color>? gradientColors;
-  final PixelRetroConfig config;
-  final bool animate;
-
-  const PixelRetroText({
-    super.key,
-    required this.text,
-    required this.primaryColor,
-    this.gradientColors,
-    this.config = const PixelRetroConfig(),
-    this.animate = false,
-  });
-
-  @override
-  State<PixelRetroText> createState() => _PixelRetroTextState();
-}
-
-class _PixelRetroTextState extends State<PixelRetroText>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: _getAnimationDuration(),
-    );
-
-    if (widget.animate && widget.config.animation != PixelAnimation.none) {
-      if (widget.config.animation == PixelAnimation.crtFlicker) {
-        _controller.repeat(reverse: true);
-      } else {
-        _controller.forward();
-      }
-    } else {
-      _controller.value = 1.0;
-    }
-  }
-
-  Duration _getAnimationDuration() {
-    switch (widget.config.animation) {
-      case PixelAnimation.crtFlicker:
-        return const Duration(milliseconds: 100);
-      case PixelAnimation.glitch:
-        return Duration(milliseconds: widget.text.length * 50);
-      case PixelAnimation.none:
-        return Duration.zero;
-    }
-  }
-
-  @override
-  void didUpdateWidget(PixelRetroText oldWidget) {
-    super.didUpdateWidget(oldWidget);
-
-    if (widget.text != oldWidget.text ||
-        widget.config.animation != oldWidget.config.animation) {
-      _controller.duration = _getAnimationDuration();
-      if (widget.animate && widget.config.animation != PixelAnimation.none) {
-        if (widget.config.animation == PixelAnimation.crtFlicker) {
-          _controller.repeat(reverse: true);
-        } else {
-          _controller.forward(from: 0);
-        }
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return CustomPaint(
-          size: Size.infinite,
-          painter: PixelRetroPainter(
-            text: widget.text,
-            primaryColor: widget.primaryColor,
-            gradientColors: widget.gradientColors,
-            config: widget.config,
-            animationProgress: _controller.value,
-          ),
-        );
-      },
-    );
+        config != oldDelegate.config;
   }
 }

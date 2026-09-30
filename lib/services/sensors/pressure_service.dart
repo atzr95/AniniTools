@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as dart_math;
 import 'package:flutter/foundation.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 
@@ -11,24 +10,19 @@ class PressureService {
   PressureService._internal();
 
   StreamSubscription? _subscription;
-  final _controller = StreamController<double>.broadcast();
+  // Controller owns the platform subscription — see AccelerometerService.
+  late final _controller = StreamController<double>.broadcast(
+    onListen: _start,
+    onCancel: _stop,
+  );
 
   Stream<double> get stream => _controller.stream;
-  double? _currentPressure;
 
-  /// Start listening to pressure sensor
-  Future<void> startListening() async {
-    // Stop any existing subscription first
-    if (_subscription != null) {
-      _subscription!.cancel();
-      _subscription = null;
-    }
-
+  void _start() {
     _subscription = barometerEventStream().listen(
       (event) {
         // Pressure is in hectopascals (hPa) or millibars (mb)
-        _currentPressure = event.pressure;
-        _controller.add(_currentPressure!);
+        _controller.add(event.pressure);
       },
       onError: (error) {
         debugPrint('Pressure sensor error: $error');
@@ -37,25 +31,8 @@ class PressureService {
     );
   }
 
-  /// Stop listening to pressure sensor
-  void stopListening() {
+  void _stop() {
     _subscription?.cancel();
     _subscription = null;
-  }
-
-  /// Calculate approximate altitude from pressure
-  /// Uses standard atmosphere model
-  double? calculateAltitude(double? seaLevelPressure) {
-    if (_currentPressure == null || seaLevelPressure == null) return null;
-
-    // Standard atmosphere formula
-    // h = 44330 * (1 - (P/P0)^(1/5.255))
-    return (44330 * (1 - dart_math.pow(_currentPressure! / seaLevelPressure, 1 / 5.255))).toDouble();
-  }
-
-  /// Cleanup
-  void dispose() {
-    stopListening();
-    _controller.close();
   }
 }

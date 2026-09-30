@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:audioplayers/audioplayers.dart';
 import '../../viewmodels/sensor_viewmodel.dart';
 import '../../widgets/measurement_card.dart';
+import '../../utils/capped_list.dart';
 
 /// Metal Detector Tool - Detect metal objects using magnetometer
 class MetalDetectorScreen extends StatefulWidget {
@@ -99,10 +100,7 @@ class _MetalDetectorScreenState extends State<MetalDetectorScreen> {
 
   void _updateHistory(double value) {
     setState(() {
-      _history.add(value);
-      if (_history.length > _maxHistoryLength) {
-        _history.removeAt(0);
-      }
+      _history.pushCapped(value, _maxHistoryLength);
       if (value > _maxRecorded) {
         _maxRecorded = value;
       }
@@ -322,8 +320,6 @@ class _MetalDetectorScreenState extends State<MetalDetectorScreen> {
                       strength: detectionStrength,
                       detectionLevel: detectionLevel,
                       onSurfaceColor: colorScheme.onSurface,
-                      primaryColor: colorScheme.primary,
-                      errorColor: colorScheme.error,
                     ),
                     child: Container(),
                   ),
@@ -644,15 +640,11 @@ class MetalDetectorGaugePainter extends CustomPainter {
   final double strength; // 0-100
   final DetectionLevel detectionLevel;
   final Color onSurfaceColor;
-  final Color primaryColor;
-  final Color errorColor;
 
   MetalDetectorGaugePainter({
     required this.strength,
     required this.detectionLevel,
     required this.onSurfaceColor,
-    required this.primaryColor,
-    required this.errorColor,
   });
 
   @override

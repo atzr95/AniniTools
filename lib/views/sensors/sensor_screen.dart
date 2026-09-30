@@ -51,27 +51,16 @@ class _SensorScreenContent extends StatelessWidget {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              // Battery Card (always expanded, no graph)
-              _buildBatteryCard(context, viewModel),
-              const SizedBox(height: 12),
+              // Every card is wrapped in Builder so the ListView builds it lazily:
+              // off-screen cards skip their build work on each 200 ms notify.
 
-              // Light Sensor Card
-              if (viewModel.isSensorAvailable('light')) ...[
-                _buildSensorCard(
-                  context,
-                  viewModel,
-                  sensorName: 'light',
-                  title: 'Light Sensor',
-                  icon: Icons.light_mode,
-                  value: '${viewModel.lightLevel.toStringAsFixed(1)} lux',
-                  hasGraph: true,
-                ),
-                const SizedBox(height: 12),
-              ],
+              // Battery Card (always expanded, no graph)
+              Builder(builder: (context) => _buildBatteryCard(context, viewModel)),
+              const SizedBox(height: 12),
 
               // Magnetic Field Card
               if (viewModel.isSensorAvailable('magnetic')) ...[
-                _buildSensorCard(
+                Builder(builder: (context) => _buildSensorCard(
                   context,
                   viewModel,
                   sensorName: 'magnetic',
@@ -79,14 +68,14 @@ class _SensorScreenContent extends StatelessWidget {
                   icon: Icons.explore,
                   value: '${viewModel.magneticField.toStringAsFixed(1)} µT',
                   hasGraph: true,
-                ),
+                )),
                 const SizedBox(height: 12),
               ],
 
               // Sound permission prompt (only when user has denied microphone)
               if (!viewModel.isSensorAvailable('sound') &&
                   viewModel.soundPermissionDenied) ...[
-                _buildPermissionCard(
+                Builder(builder: (context) => _buildPermissionCard(
                   context,
                   title: 'Microphone access needed',
                   description:
@@ -94,13 +83,13 @@ class _SensorScreenContent extends StatelessWidget {
                   icon: Icons.mic_off,
                   actionLabel: 'Enable microphone',
                   onAction: () => viewModel.retrySoundMonitoring(),
-                ),
+                )),
                 const SizedBox(height: 12),
               ],
 
               // Sound (Decibel) Card
               if (viewModel.isSensorAvailable('sound')) ...[
-                _buildSensorCard(
+                Builder(builder: (context) => _buildSensorCard(
                   context,
                   viewModel,
                   sensorName: 'decibel',
@@ -108,13 +97,13 @@ class _SensorScreenContent extends StatelessWidget {
                   icon: Icons.graphic_eq,
                   value: '${viewModel.decibel.toStringAsFixed(1)} dB',
                   hasGraph: true,
-                ),
+                )),
                 const SizedBox(height: 12),
               ],
 
               // Pitch Card
               if (viewModel.isSensorAvailable('sound')) ...[
-                _buildSensorCard(
+                Builder(builder: (context) => _buildSensorCard(
                   context,
                   viewModel,
                   sensorName: 'pitch',
@@ -123,18 +112,18 @@ class _SensorScreenContent extends StatelessWidget {
                   value:
                       '${viewModel.pitchFrequency.toStringAsFixed(1)} Hz\n${viewModel.pitchNote}',
                   hasGraph: true,
-                ),
+                )),
                 const SizedBox(height: 12),
               ],
 
               // GPS Card — shown even when permission denied so the user can
               // tap "Enable Location" inside the expanded card to retry.
-              _buildGPSCard(context, viewModel),
+              Builder(builder: (context) => _buildGPSCard(context, viewModel)),
               const SizedBox(height: 12),
 
               // Linear Acceleration Card
               if (viewModel.isSensorAvailable('accelerometer')) ...[
-                _buildSensorCard(
+                Builder(builder: (context) => _buildSensorCard(
                   context,
                   viewModel,
                   sensorName: 'accelerometer',
@@ -146,19 +135,19 @@ class _SensorScreenContent extends StatelessWidget {
                       'Z: ${viewModel.accelZ.toStringAsFixed(2)}\n'
                       'Mag: ${viewModel.accelMagnitude.toStringAsFixed(2)} m/s²',
                   hasGraph: true,
-                ),
+                )),
                 const SizedBox(height: 12),
               ],
 
               // Orientation Card (with visual)
               if (viewModel.isSensorAvailable('orientation')) ...[
-                _buildOrientationCard(context, viewModel),
+                Builder(builder: (context) => _buildOrientationCard(context, viewModel)),
                 const SizedBox(height: 12),
               ],
 
               // Gyroscope Card
               if (viewModel.isSensorAvailable('gyroscope')) ...[
-                _buildSensorCard(
+                Builder(builder: (context) => _buildSensorCard(
                   context,
                   viewModel,
                   sensorName: 'gyroscope',
@@ -170,19 +159,19 @@ class _SensorScreenContent extends StatelessWidget {
                       'Z: ${viewModel.gyroZ.toStringAsFixed(3)}\n'
                       'Mag: ${viewModel.gyroMagnitude.toStringAsFixed(3)} rad/s',
                   hasGraph: true,
-                ),
+                )),
                 const SizedBox(height: 12),
               ],
 
               // Proximity Card
               if (viewModel.isSensorAvailable('proximity')) ...[
-                _buildProximityCard(context, viewModel),
+                Builder(builder: (context) => _buildProximityCard(context, viewModel)),
                 const SizedBox(height: 12),
               ],
 
               // Pressure Card
               if (viewModel.isSensorAvailable('pressure')) ...[
-                _buildPressureCard(context, viewModel),
+                Builder(builder: (context) => _buildPressureCard(context, viewModel)),
                 const SizedBox(height: 12),
               ],
 
@@ -198,77 +187,77 @@ class _SensorScreenContent extends StatelessWidget {
 
               // Spirit Level Tool (requires accelerometer)
               if (viewModel.isSensorAvailable('accelerometer')) ...[
-                _buildToolCard(
+                Builder(builder: (context) => _buildToolCard(
                   context,
                   title: 'Spirit Level',
                   icon: Icons.architecture,
                   description:
                       '2D bubble level for hanging pictures and checking surfaces',
                   onTap: () => Navigator.pushNamed(context, '/spirit-level'),
-                ),
+                )),
                 const SizedBox(height: 12),
               ],
 
               // Metal Detector Tool (requires magnetometer)
               if (viewModel.isSensorAvailable('magnetic')) ...[
-                _buildToolCard(
+                Builder(builder: (context) => _buildToolCard(
                   context,
                   title: 'Metal Detector',
                   icon: Icons.search,
                   description: 'Find studs in walls and locate metal objects',
                   onTap: () => Navigator.pushNamed(context, '/metal-detector'),
-                ),
+                )),
                 const SizedBox(height: 12),
               ],
 
               // Decibel Meter Tool (requires sound)
               if (viewModel.isSensorAvailable('sound')) ...[
-                _buildToolCard(
+                Builder(builder: (context) => _buildToolCard(
                   context,
                   title: 'Decibel Meter',
                   icon: Icons.graphic_eq,
                   description: 'Measure sound levels with safety warnings',
                   onTap: () => Navigator.pushNamed(context, '/decibel-meter'),
-                ),
+                )),
                 const SizedBox(height: 12),
               ],
 
               // Altitude Calculator Tool (requires pressure + GPS)
               if (viewModel.isSensorAvailable('pressure') &&
                   viewModel.isSensorAvailable('gps')) ...[
-                _buildToolCard(
+                Builder(builder: (context) => _buildToolCard(
                   context,
                   title: 'Altitude Calculator',
                   icon: Icons.terrain,
                   description: 'Track elevation and predict weather changes',
                   onTap: () =>
                       Navigator.pushNamed(context, '/altitude-calculator'),
-                ),
+                )),
                 const SizedBox(height: 12),
               ],
 
               // Vibration Analyzer Tool (requires accelerometer)
               if (viewModel.isSensorAvailable('accelerometer')) ...[
-                _buildToolCard(
+                Builder(builder: (context) => _buildToolCard(
                   context,
                   title: 'Vibration Analyzer',
                   icon: Icons.vibration,
                   description: 'Analyze vibrations for diagnostics and safety',
                   onTap: () =>
                       Navigator.pushNamed(context, '/vibration-analyzer'),
-                ),
+                )),
                 const SizedBox(height: 12),
               ],
 
               // Acceleration Meter Tool (requires accelerometer)
               if (viewModel.isSensorAvailable('accelerometer')) ...[
-                _buildToolCard(
+                Builder(builder: (context) => _buildToolCard(
                   context,
                   title: 'Acceleration Meter',
                   icon: Icons.speed,
                   description: 'Measure vehicle acceleration and speed changes',
                   onTap: () => Navigator.pushNamed(context, '/g-force-meter'),
-                ),
+                )),
               ],
             ],
           );
@@ -816,9 +805,6 @@ class _SensorScreenContent extends StatelessWidget {
 
     List<double> data;
     switch (sensorName) {
-      case 'light':
-        data = viewModel.lightGraphData;
-        break;
       case 'magnetic':
         data = viewModel.magneticGraphData;
         break;

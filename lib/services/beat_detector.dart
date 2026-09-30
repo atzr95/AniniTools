@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
+import '../utils/capped_list.dart';
 
 /// Result of attempting to start a [BeatDetector].
 enum BeatDetectorStartResult {
@@ -68,20 +68,19 @@ class BeatDetector {
   int _consecutiveHighEnergyChunks = 0;
   int _consecutiveLowEnergyChunks = 0;
 
-  bool get isRunning => _running;
-
   /// Request mic permission and begin streaming audio.
   /// Returns a [BeatDetectorStartResult] so callers can distinguish the
   /// "user said no" case from a platform failure.
   Future<BeatDetectorStartResult> start() async {
     if (_running) return BeatDetectorStartResult.success;
 
-    final status = await Permission.microphone.request();
-    if (!status.isGranted) {
-      return BeatDetectorStartResult.permissionDenied;
-    }
-
     try {
+      // The recorder's own check prompts on both platforms. permission_handler
+      // did not on iOS: its microphone code is compiled out without a Podfile flag.
+      if (!await _recorder.hasPermission()) {
+        return BeatDetectorStartResult.permissionDenied;
+      }
+
       final stream = await _recorder.startStream(
         const RecordConfig(
           encoder: AudioEncoder.pcm16bits,
@@ -151,10 +150,7 @@ class BeatDetector {
     final now = DateTime.now();
     final sinceLast = now.difference(_lastBeatTime).inMilliseconds;
 
-    _energyHistory.add(currentEnergy);
-    if (_energyHistory.length > _historySize) {
-      _energyHistory.removeAt(0);
-    }
+    _energyHistory.pushCapped(currentEnergy, _historySize);
     if (_energyHistory.length < 10) {
       _previousEnergy = currentEnergy;
       return false;

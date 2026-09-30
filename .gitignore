@@ -40,6 +40,7 @@ app.*.symbols
 app.*.map.json
 
 # Android Studio will place build artifacts here
+/android/build
 /android/app/debug
 /android/app/profile
 /android/app/release
@@ -69,6 +70,9 @@ IMPLEMENTATION_STATUS.md
 PRIVACY_POLICY.html
 PRIVACY_POLICY.md
 scripts/
+!scripts/
+scripts/*
+!scripts/release.sh
 
 # Release build artifacts (large binaries, signed bundles)
 release/

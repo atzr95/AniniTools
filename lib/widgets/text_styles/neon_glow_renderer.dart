@@ -2,41 +2,9 @@ import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../models/text_style_config.dart';
-import 'text_style_renderer.dart';
 
 /// Neon glow style text renderer.
 /// Renders text with a glowing neon tube effect.
-class NeonGlowRenderer extends TextStyleRenderer {
-  final NeonGlowConfig config;
-
-  NeonGlowRenderer({this.config = const NeonGlowConfig()});
-
-  @override
-  Widget build({
-    required BuildContext context,
-    required String text,
-    required Color primaryColor,
-    List<Color>? gradientColors,
-    double fontSize = 48.0,
-    double? animationProgress,
-  }) {
-    final glowColor = config.glowColor ?? primaryColor;
-    final intensity = config.intensity.multiplier;
-
-    return NeonGlowText(
-      text: text,
-      primaryColor: primaryColor,
-      glowColor: glowColor,
-      gradientColors: gradientColors,
-      fontSize: fontSize,
-      intensity: intensity,
-      flickerMode: config.flickerMode,
-      pulseGlow: config.pulseGlow,
-    );
-  }
-}
-
-/// Stateful widget for Neon Glow with animation support
 class NeonGlowText extends StatefulWidget {
   final String text;
   final Color primaryColor;

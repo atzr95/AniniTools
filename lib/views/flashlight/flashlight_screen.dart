@@ -23,6 +23,31 @@ class _FlashlightState {
   Timer? strobeTimer;
   Timer? autoOffTimer;
   bool sosActive = false;
+  double? originalBrightness;
+
+  Future<void> turnOff() async {
+    isOn = false;
+    strobeTimer?.cancel();
+    strobeTimer = null;
+    sosActive = false;
+    autoOffTimer?.cancel();
+    autoOffTimer = null;
+    autoOffMinutes = null;
+    autoOffStartTime = null;
+    if (originalBrightness != null) {
+      try {
+        await ScreenBrightness().setScreenBrightness(originalBrightness!);
+        originalBrightness = null;
+      } catch (e) {
+        debugPrint('Failed to restore screen brightness: $e');
+      }
+    }
+    try {
+      await TorchLight.disableTorch();
+    } catch (e) {
+      debugPrint('Failed to disable torch: $e');
+    }
+  }
 }
 
 /// Flashlight screen - main utility feature
@@ -40,45 +65,13 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
   bool _isTorchAvailable = true;
   int _batteryLevel = 100;
   final Battery _battery = Battery();
-  double? _originalBrightness;
+  Timer? _batteryTimer;
 
   // UI state
   bool _showAdvancedOptions = false;
 
   // Custom SOS message (runtime only, not persisted)
   String _customSOSMessage = 'SOS';
-
-  // Getters to access global state
-  bool get _isFlashlightOn => _globalState.isOn;
-  set _isFlashlightOn(bool value) => _globalState.isOn = value;
-
-  FlashlightMode get _currentMode => _globalState.mode;
-  set _currentMode(FlashlightMode value) => _globalState.mode = value;
-
-  double get _brightness => _globalState.brightness;
-  set _brightness(double value) => _globalState.brightness = value;
-
-  double get _strobeFrequency => _globalState.strobeFrequency;
-  set _strobeFrequency(double value) => _globalState.strobeFrequency = value;
-
-  int? get _autoOffMinutes => _globalState.autoOffMinutes;
-  set _autoOffMinutes(int? value) => _globalState.autoOffMinutes = value;
-
-  DateTime? get _autoOffStartTime => _globalState.autoOffStartTime;
-  set _autoOffStartTime(DateTime? value) =>
-      _globalState.autoOffStartTime = value;
-
-  Timer? get _strobeTimer => _globalState.strobeTimer;
-  set _strobeTimer(Timer? value) => _globalState.strobeTimer = value;
-
-  Timer? get _autoOffTimer => _globalState.autoOffTimer;
-  set _autoOffTimer(Timer? value) => _globalState.autoOffTimer = value;
-
-  bool get _sosActive => _globalState.sosActive;
-  set _sosActive(bool value) => _globalState.sosActive = value;
-
-  Color get _screenLightColor => _globalState.screenLightColor;
-  set _screenLightColor(Color value) => _globalState.screenLightColor = value;
 
   @override
   void initState() {
@@ -87,9 +80,10 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
     _updateBatteryLevel();
     _loadSavedScreenLightColor();
     // Update battery level every 30 seconds
-    Timer.periodic(const Duration(seconds: 30), (_) {
-      if (mounted) _updateBatteryLevel();
-    });
+    _batteryTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _updateBatteryLevel(),
+    );
   }
 
   // Load saved screen light color from persistent storage
@@ -99,7 +93,7 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
       final colorValue = prefs.getInt('screen_light_color');
       if (colorValue != null && mounted) {
         setState(() {
-          _screenLightColor = Color(colorValue);
+          _globalState.screenLightColor = Color(colorValue);
         });
       }
     } catch (e) {
@@ -111,7 +105,10 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
   Future<void> _saveScreenLightColor() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('screen_light_color', _screenLightColor.toARGB32());
+      await prefs.setInt(
+        'screen_light_color',
+        _globalState.screenLightColor.toARGB32(),
+      );
     } catch (e) {
       debugPrint('Failed to save screen light color: $e');
     }
@@ -119,34 +116,42 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
 
   @override
   void dispose() {
-    // Don't stop modes or cancel timers - let them persist across navigation
-    // They will continue running in the background
+    _batteryTimer?.cancel();
+    // Flashlight modes persist across navigation in _FlashlightState.
     super.dispose();
   }
 
   Future<void> _checkTorchAvailability() async {
+    // isTorchAvailable returns false on devices without a torch (iPad, simulators),
+    // so its answer must be used, not just "did it throw".
+    var available = false;
     try {
-      await TorchLight.isTorchAvailable();
-      setState(() {
-        _isTorchAvailable = true;
-      });
+      available = await TorchLight.isTorchAvailable();
     } catch (e) {
-      setState(() {
-        _isTorchAvailable = false;
-        // If torch unavailable and current mode requires torch, switch to screen light
-        if (!_isScreenBasedMode(_currentMode)) {
-          _currentMode = FlashlightMode.screenLight;
-        }
-      });
+      debugPrint('Torch check failed: $e');
     }
+    if (!mounted) return;
+    setState(() {
+      _isTorchAvailable = available;
+      // If torch unavailable and current mode requires torch, switch to screen light
+      if (!available && !_isScreenBasedMode(_globalState.mode)) {
+        _globalState.mode = FlashlightMode.screenLight;
+      }
+    });
   }
 
   Future<void> _updateBatteryLevel() async {
-    final level = await _battery.batteryLevel;
-    if (mounted) {
-      setState(() {
-        _batteryLevel = level;
-      });
+    try {
+      final level = await _battery.batteryLevel;
+      if (mounted) {
+        setState(() {
+          _batteryLevel = level;
+        });
+      }
+    } catch (e) {
+      // Simulators have no battery, so the plugin throws a PlatformException.
+      // Keep the current value (same handling as BatteryService).
+      debugPrint('Battery level unavailable: $e');
     }
   }
 
@@ -158,8 +163,8 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
 
   Future<void> _toggleFlashlight() async {
     // Screen-based modes don't need torch, so skip availability check
-    final needsTorch = _currentMode != FlashlightMode.redLight &&
-        _currentMode != FlashlightMode.screenLight;
+    final needsTorch = _globalState.mode != FlashlightMode.redLight &&
+        _globalState.mode != FlashlightMode.screenLight;
 
     if (needsTorch && !_isTorchAvailable) {
       _showError('Flashlight not available on this device');
@@ -167,47 +172,19 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
     }
 
     try {
-      if (_isFlashlightOn) {
-        // Stop all modes first, then disable torch
-        setState(() {
-          _isFlashlightOn = false;
-        });
-        _stopAllModes();
-        // Restore original brightness for screen light modes
-        if ((_currentMode == FlashlightMode.redLight ||
-                _currentMode == FlashlightMode.screenLight) &&
-            _originalBrightness != null) {
-          try {
-            await ScreenBrightness().setScreenBrightness(_originalBrightness!);
-            _originalBrightness = null;
-          } catch (e) {
-            debugPrint('Failed to restore screen brightness: $e');
-          }
-        }
-        // Add delay to ensure timer operations complete
-        await Future.delayed(const Duration(milliseconds: 100));
-        // Force disable torch multiple times to ensure it's off
-        try {
-          await TorchLight.disableTorch();
-        } catch (e) {
-          debugPrint('Failed to disable torch (first attempt): $e');
-        }
-        await Future.delayed(const Duration(milliseconds: 50));
-        try {
-          await TorchLight.disableTorch();
-        } catch (e) {
-          debugPrint('Failed to disable torch (retry): $e');
-        }
+      if (_globalState.isOn) {
+        setState(() => _globalState.isOn = false);
+        await _globalState.turnOff();
       } else {
         setState(() {
-          _isFlashlightOn = true;
+          _globalState.isOn = true;
         });
         // Only enable torch for non-screen modes
         if (needsTorch) {
           await TorchLight.enableTorch();
         }
         // Start selected mode
-        switch (_currentMode) {
+        switch (_globalState.mode) {
           case FlashlightMode.strobe:
             _startStrobe();
             break;
@@ -218,7 +195,7 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
           case FlashlightMode.screenLight:
             // Screen-based modes, just set brightness (no torch needed)
             try {
-              _originalBrightness = await ScreenBrightness().current;
+              _globalState.originalBrightness = await ScreenBrightness().current;
               await _updateScreenBrightness();
             } catch (e) {
               debugPrint('Failed to set screen brightness: $e');
@@ -229,6 +206,10 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
         }
       }
     } catch (e) {
+      // Reset to a clean "off" state, so the UI never says ON after a failure.
+      await _globalState.turnOff();
+      if (!mounted) return;
+      setState(() {});
       _showError('Failed to control flashlight: $e');
     }
   }
@@ -237,42 +218,34 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
   Future<void> _updateScreenBrightness() async {
     try {
       // Brightness slider is already 0.2 to 1.0, so use it directly
-      await ScreenBrightness().setScreenBrightness(_brightness);
+      await ScreenBrightness().setScreenBrightness(_globalState.brightness);
     } catch (e) {
       debugPrint('Failed to update screen brightness: $e');
     }
   }
 
-  void _stopAllModes() {
-    _strobeTimer?.cancel();
-    _strobeTimer = null;
-    _sosActive = false;
-    _autoOffTimer?.cancel();
-    _autoOffTimer = null;
-    _autoOffMinutes = null;
-    _autoOffStartTime = null;
-  }
-
   void _setMode(FlashlightMode mode) {
     setState(() {
-      _currentMode = mode;
+      _globalState.mode = mode;
     });
 
-    if (_isFlashlightOn) {
+    if (_globalState.isOn) {
       // Re-apply the flashlight with new mode
       _toggleFlashlight().then((_) => _toggleFlashlight());
     }
   }
 
   void _startStrobe() {
-    final interval = Duration(milliseconds: (500 / _strobeFrequency).round());
-    _strobeTimer = Timer.periodic(interval, (_) async {
-      if (!_isFlashlightOn) return;
+    final interval = Duration(
+      milliseconds: (500 / _globalState.strobeFrequency).round(),
+    );
+    _globalState.strobeTimer = Timer.periodic(interval, (_) async {
+      if (!_globalState.isOn) return;
       try {
         await TorchLight.disableTorch();
-        if (!_isFlashlightOn) return; // Check again after async operation
+        if (!_globalState.isOn) return; // Check again after async operation
         await Future.delayed(const Duration(milliseconds: 50));
-        if (!_isFlashlightOn) return; // Check again after delay
+        if (!_globalState.isOn) return; // Check again after delay
         await TorchLight.enableTorch();
       } catch (e) {
         // Ignore errors during strobe
@@ -282,19 +255,19 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
 
   void _startSOS() {
     // SOS pattern using custom message (defaults to "SOS")
-    _sosActive = true;
+    _globalState.sosActive = true;
     _runSOSPattern();
   }
 
   Future<void> _runSOSPattern() async {
-    if (!_sosActive || !_isFlashlightOn) return;
+    if (!_globalState.sosActive || !_globalState.isOn) return;
 
     // Convert message to Morse code pattern
     final pattern = _convertToMorseCode(_customSOSMessage);
 
     try {
       for (var i = 0; i < pattern.length; i += 2) {
-        if (!_sosActive || !_isFlashlightOn) break;
+        if (!_globalState.sosActive || !_globalState.isOn) break;
 
         await TorchLight.enableTorch();
         await Future.delayed(Duration(milliseconds: pattern[i]));
@@ -302,12 +275,12 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
         await Future.delayed(Duration(milliseconds: pattern[i + 1]));
       }
 
-      if (_sosActive && _isFlashlightOn) {
+      if (_globalState.sosActive && _globalState.isOn) {
         _runSOSPattern(); // Repeat
       }
     } catch (e) {
       // Stop SOS on error
-      _sosActive = false;
+      _globalState.sosActive = false;
     }
   }
 
@@ -474,25 +447,28 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
   }
 
   void _setAutoOff(int? minutes) {
-    _autoOffTimer?.cancel();
+    _globalState.autoOffTimer?.cancel();
 
     if (minutes == null) {
       setState(() {
-        _autoOffMinutes = null;
-        _autoOffStartTime = null;
+        _globalState.autoOffMinutes = null;
+        _globalState.autoOffStartTime = null;
       });
       return;
     }
 
     setState(() {
-      _autoOffMinutes = minutes;
-      _autoOffStartTime = DateTime.now();
+      _globalState.autoOffMinutes = minutes;
+      _globalState.autoOffStartTime = DateTime.now();
     });
 
-    _autoOffTimer = Timer(Duration(minutes: minutes), () {
-      if (_isFlashlightOn) {
-        _toggleFlashlight();
-        _showNotification('Flashlight auto-off after $minutes minutes');
+    _globalState.autoOffTimer = Timer(Duration(minutes: minutes), () {
+      if (_globalState.isOn) {
+        _globalState.turnOff();
+        if (mounted) {
+          setState(() {});
+          _showNotification('Flashlight auto-off after $minutes minutes');
+        }
       }
     });
   }
@@ -516,10 +492,13 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
   }
 
   String _getRemainingTime() {
-    if (_autoOffStartTime == null || _autoOffMinutes == null) return '';
+    if (_globalState.autoOffStartTime == null ||
+        _globalState.autoOffMinutes == null) {
+      return '';
+    }
 
-    final elapsed = DateTime.now().difference(_autoOffStartTime!);
-    final remaining = Duration(minutes: _autoOffMinutes!) - elapsed;
+    final elapsed = DateTime.now().difference(_globalState.autoOffStartTime!);
+    final remaining = Duration(minutes: _globalState.autoOffMinutes!) - elapsed;
 
     if (remaining.isNegative) return '0:00';
 
@@ -581,7 +560,7 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
                   width: double.infinity,
                   height: 60,
                   decoration: BoxDecoration(
-                    color: _screenLightColor,
+                    color: _globalState.screenLightColor,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: Colors.grey.shade300),
                   ),
@@ -670,7 +649,7 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
 
   // Build interactive color palette picker
   Widget _buildColorPalettePicker(StateSetter setDialogState) {
-    final hsvColor = HSVColor.fromColor(_screenLightColor);
+    final hsvColor = HSVColor.fromColor(_globalState.screenLightColor);
 
     return Column(
       children: [
@@ -769,12 +748,12 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
 
   // Update color from palette position
   void _updateColorFromPalette(Offset position, StateSetter setDialogState) {
-    final hsvColor = HSVColor.fromColor(_screenLightColor);
+    final hsvColor = HSVColor.fromColor(_globalState.screenLightColor);
     final saturation = (position.dx / 280).clamp(0.0, 1.0);
     final value = (1 - (position.dy / 200)).clamp(0.0, 1.0);
 
     setState(() {
-      _screenLightColor = hsvColor
+      _globalState.screenLightColor = hsvColor
           .withSaturation(saturation)
           .withValue(value)
           .toColor();
@@ -785,11 +764,11 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
 
   // Update hue from slider position
   void _updateHue(Offset position, StateSetter setDialogState) {
-    final hsvColor = HSVColor.fromColor(_screenLightColor);
+    final hsvColor = HSVColor.fromColor(_globalState.screenLightColor);
     final hue = ((position.dx / 280) * 360).clamp(0.0, 360.0);
 
     setState(() {
-      _screenLightColor = hsvColor.withHue(hue).toColor();
+      _globalState.screenLightColor = hsvColor.withHue(hue).toColor();
     });
     setDialogState(() {});
     _saveScreenLightColor();
@@ -801,11 +780,12 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
     String label,
     StateSetter setDialogState,
   ) {
-    final isSelected = _screenLightColor.toARGB32() == color.toARGB32();
+    final isSelected =
+        _globalState.screenLightColor.toARGB32() == color.toARGB32();
     return GestureDetector(
       onTap: () {
         setState(() {
-          _screenLightColor = color;
+          _globalState.screenLightColor = color;
         });
         setDialogState(() {});
         _saveScreenLightColor();
@@ -861,18 +841,20 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
     final colorScheme = theme.colorScheme;
 
     // Screen-based light modes use full screen overlay
-    if ((_currentMode == FlashlightMode.redLight ||
-            _currentMode == FlashlightMode.screenLight) &&
-        _isFlashlightOn) {
-      final isRedLight = _currentMode == FlashlightMode.redLight;
+    if ((_globalState.mode == FlashlightMode.redLight ||
+            _globalState.mode == FlashlightMode.screenLight) &&
+        _globalState.isOn) {
+      final isRedLight = _globalState.mode == FlashlightMode.redLight;
       // Use solid colors - brightness is controlled by device screen brightness
       final backgroundColor = isRedLight
           ? Colors.red.shade900
-          : _screenLightColor;
+          : _globalState.screenLightColor;
       final textColor = isRedLight
           ? Colors.red.shade100
-          : _getContrastColor(_screenLightColor);
-      final buttonColor = isRedLight ? Colors.red.shade800 : _screenLightColor;
+          : _getContrastColor(_globalState.screenLightColor);
+      final buttonColor = isRedLight
+          ? Colors.red.shade800
+          : _globalState.screenLightColor;
 
       return Scaffold(
         backgroundColor: backgroundColor,
@@ -967,10 +949,10 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
                       height: 200,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: _isFlashlightOn
+                        color: _globalState.isOn
                             ? colorScheme.primary
                             : colorScheme.surfaceContainerHighest,
-                        boxShadow: _isFlashlightOn
+                        boxShadow: _globalState.isOn
                             ? [
                                 BoxShadow(
                                   color: colorScheme.primary.withValues(
@@ -983,11 +965,11 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
                             : null,
                       ),
                       child: Icon(
-                        _isFlashlightOn
+                        _globalState.isOn
                             ? Icons.flashlight_on
                             : Icons.flashlight_off,
                         size: 80,
-                        color: _isFlashlightOn
+                        color: _globalState.isOn
                             ? colorScheme.onPrimary
                             : colorScheme.onSurface,
                       ),
@@ -998,18 +980,19 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
 
                   // Status text
                   Text(
-                    _isFlashlightOn
-                        ? 'Flashlight ON${_currentMode != FlashlightMode.normal ? ' - ${_currentMode.label}' : ''}'
+                    _globalState.isOn
+                        ? 'Flashlight ON${_globalState.mode != FlashlightMode.normal ? ' - ${_globalState.mode.label}' : ''}'
                         : 'Tap to turn ON',
                     style: theme.textTheme.headlineSmall?.copyWith(
-                      color: _isFlashlightOn
+                      color: _globalState.isOn
                           ? colorScheme.primary
                           : colorScheme.onSurface.withValues(alpha: 0.6),
                     ),
                   ),
 
                   // Auto-off timer display
-                  if (_autoOffMinutes != null && _isFlashlightOn) ...[
+                  if (_globalState.autoOffMinutes != null &&
+                      _globalState.isOn) ...[
                     const SizedBox(height: 8),
                     Text(
                       'Auto-off in ${_getRemainingTime()}',
@@ -1067,7 +1050,7 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
                           .where((mode) =>
                               _isTorchAvailable || _isScreenBasedMode(mode))
                           .map((mode) {
-                        final isSelected = _currentMode == mode;
+                        final isSelected = _globalState.mode == mode;
                         return FilterChip(
                           label: Text(mode.label),
                           avatar: Icon(mode.icon, size: 18),
@@ -1161,7 +1144,7 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
             const SizedBox(height: 16),
 
             // SOS message customization (only shown when SOS mode selected)
-            if (_currentMode == FlashlightMode.sos) ...[
+            if (_globalState.mode == FlashlightMode.sos) ...[
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -1216,13 +1199,13 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
             ],
 
             // Strobe frequency (only shown when strobe mode selected)
-            if (_currentMode == FlashlightMode.strobe) ...[
+            if (_globalState.mode == FlashlightMode.strobe) ...[
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text('Strobe Speed', style: theme.textTheme.titleSmall),
                   Text(
-                    '${_strobeFrequency.toStringAsFixed(1)} Hz',
+                    '${_globalState.strobeFrequency.toStringAsFixed(1)} Hz',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: colorScheme.primary,
                       fontWeight: FontWeight.bold,
@@ -1231,16 +1214,16 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
                 ],
               ),
               Slider(
-                value: _strobeFrequency,
+                value: _globalState.strobeFrequency,
                 min: 1.0,
                 max: 20.0,
                 divisions: 19,
                 onChanged: (value) {
                   setState(() {
-                    _strobeFrequency = value;
+                    _globalState.strobeFrequency = value;
                   });
-                  if (_isFlashlightOn) {
-                    _strobeTimer?.cancel();
+                  if (_globalState.isOn) {
+                    _globalState.strobeTimer?.cancel();
                     _startStrobe();
                   }
                 },
@@ -1249,14 +1232,14 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
             ],
 
             // Brightness (shown for red light and screen light modes)
-            if (_currentMode == FlashlightMode.redLight ||
-                _currentMode == FlashlightMode.screenLight) ...[
+            if (_globalState.mode == FlashlightMode.redLight ||
+                _globalState.mode == FlashlightMode.screenLight) ...[
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text('Brightness', style: theme.textTheme.titleSmall),
                   Text(
-                    '${(_brightness * 100).toInt()}%',
+                    '${(_globalState.brightness * 100).toInt()}%',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: colorScheme.primary,
                       fontWeight: FontWeight.bold,
@@ -1265,16 +1248,16 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
                 ],
               ),
               Slider(
-                value: _brightness,
+                value: _globalState.brightness,
                 min: 0.2,
                 max: 1.0,
                 divisions: 8,
                 onChanged: (value) {
                   setState(() {
-                    _brightness = value;
+                    _globalState.brightness = value;
                   });
                   // Update device screen brightness in real-time
-                  if (_isFlashlightOn) {
+                  if (_globalState.isOn) {
                     _updateScreenBrightness();
                   }
                 },
@@ -1283,7 +1266,7 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
             ],
 
             // Color picker (only shown for screen light mode)
-            if (_currentMode == FlashlightMode.screenLight) ...[
+            if (_globalState.mode == FlashlightMode.screenLight) ...[
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -1307,7 +1290,7 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
                 width: double.infinity,
                 height: 60,
                 decoration: BoxDecoration(
-                  color: _screenLightColor,
+                  color: _globalState.screenLightColor,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
                     color: colorScheme.outlineVariant,
@@ -1316,9 +1299,9 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
                 ),
                 child: Center(
                   child: Text(
-                    _getColorName(_screenLightColor),
+                    _getColorName(_globalState.screenLightColor),
                     style: theme.textTheme.titleMedium?.copyWith(
-                      color: _getContrastColor(_screenLightColor),
+                      color: _getContrastColor(_globalState.screenLightColor),
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -1336,27 +1319,27 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
               children: [
                 ChoiceChip(
                   label: const Text('Off'),
-                  selected: _autoOffMinutes == null,
+                  selected: _globalState.autoOffMinutes == null,
                   onSelected: (_) => _setAutoOff(null),
                 ),
                 ChoiceChip(
                   label: const Text('5 min'),
-                  selected: _autoOffMinutes == 5,
+                  selected: _globalState.autoOffMinutes == 5,
                   onSelected: (_) => _setAutoOff(5),
                 ),
                 ChoiceChip(
                   label: const Text('10 min'),
-                  selected: _autoOffMinutes == 10,
+                  selected: _globalState.autoOffMinutes == 10,
                   onSelected: (_) => _setAutoOff(10),
                 ),
                 ChoiceChip(
                   label: const Text('15 min'),
-                  selected: _autoOffMinutes == 15,
+                  selected: _globalState.autoOffMinutes == 15,
                   onSelected: (_) => _setAutoOff(15),
                 ),
                 ChoiceChip(
                   label: const Text('30 min'),
-                  selected: _autoOffMinutes == 30,
+                  selected: _globalState.autoOffMinutes == 30,
                   onSelected: (_) => _setAutoOff(30),
                 ),
               ],

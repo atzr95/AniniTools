@@ -105,12 +105,10 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
     }
 
     _restoreBrightness();
-    // Ensure orientation is reset when leaving concert mode screen entirely
+    // Back to the app's portrait lock (same as main.dart) when leaving concert mode
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
     ]);
     super.dispose();
   }
@@ -149,6 +147,7 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
   Future<void> _loadFavorites() async {
     final prefs = await SharedPreferences.getInstance();
     final favoritesJson = prefs.getStringList('concert_favorites') ?? [];
+    if (!mounted) return;
     setState(() {
       _favorites = favoritesJson
           .map((json) => MessageTemplate.fromJson(jsonDecode(json)))
@@ -158,6 +157,7 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
 
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
     setState(() {
       // Load message
       _message = prefs.getString('concert_message') ?? 'I ❤️ MUSIC';
@@ -289,7 +289,7 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
     final favoritesJson =
         _favorites.map((t) => jsonEncode(t.toJson())).toList();
     await prefs.setStringList('concert_favorites', favoritesJson);
-    setState(() {});
+    if (mounted) setState(() {});
   }
 
   Future<void> _removeFavorite(MessageTemplate template) async {
@@ -298,7 +298,7 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
     final favoritesJson =
         _favorites.map((t) => jsonEncode(t.toJson())).toList();
     await prefs.setStringList('concert_favorites', favoritesJson);
-    setState(() {});
+    if (mounted) setState(() {});
   }
 
   void _setupScrollAnimation() {
@@ -402,13 +402,11 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
     _scrollController.stop();
     _stopBeatSync();
 
-    // After a short delay, allow auto-rotate again
+    // After a short delay, go back to the app's portrait lock (same as main.dart)
     Future.delayed(const Duration(milliseconds: 300), () {
       SystemChrome.setPreferredOrientations([
         DeviceOrientation.portraitUp,
         DeviceOrientation.portraitDown,
-        DeviceOrientation.landscapeLeft,
-        DeviceOrientation.landscapeRight,
       ]);
     });
   }
@@ -826,10 +824,8 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
           scrollDirection: _scrollDirection,
           scrollSpeed: _scrollSpeed,
           fontSize: _fontSize,
-          fontWeight: _fontWeight,
           colorMode: _colorMode,
           solidColor: _solidColor,
-          gradientColors: _gradientColors,
           backgroundColor: _backgroundColor,
           useCustomBackground: _useCustomBackground,
           effectMode: _effectMode,
@@ -861,23 +857,8 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
             setDialogState(() {});
             _saveSettings();
           },
-          onFontWeightChanged: (value) {
-            setState(() => _fontWeight = value);
-            setDialogState(() {});
-            _saveSettings();
-          },
           onColorModeChanged: (value) {
             setState(() => _colorMode = value);
-            setDialogState(() {});
-            _saveSettings();
-          },
-          onSolidColorChanged: (value) {
-            setState(() => _solidColor = value);
-            setDialogState(() {});
-            _saveSettings();
-          },
-          onGradientColorsChanged: (value) {
-            setState(() => _gradientColors = value);
             setDialogState(() {});
             _saveSettings();
           },
@@ -888,11 +869,6 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
           },
           onEffectModeChanged: (value) {
             setState(() => _effectMode = value);
-            setDialogState(() {});
-            _saveSettings();
-          },
-          onTextStyleChanged: (value) {
-            setState(() => _textStyle = value);
             setDialogState(() {});
             _saveSettings();
           },
@@ -979,12 +955,14 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
     // Use appropriate renderer based on text style
     switch (_textStyle) {
       case TextDisplayStyle.ledMatrix:
-        textWidget = LEDMatrixText(
-          text: _message,
-          primaryColor: primaryColor,
-          gradientColors: gradientColors,
-          config: _ledConfig,
-          animate: false,
+        textWidget = CustomPaint(
+          size: Size.infinite,
+          painter: LEDMatrixPainter(
+            text: _message,
+            primaryColor: primaryColor,
+            gradientColors: gradientColors,
+            config: _ledConfig,
+          ),
         );
         break;
 
@@ -1002,32 +980,38 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
         break;
 
       case TextDisplayStyle.sevenSegment:
-        textWidget = SevenSegmentText(
-          text: _message,
-          primaryColor: primaryColor,
-          gradientColors: gradientColors,
-          config: _sevenSegmentConfig,
-          animate: false,
+        textWidget = CustomPaint(
+          size: Size.infinite,
+          painter: SevenSegmentPainter(
+            text: _message,
+            primaryColor: primaryColor,
+            gradientColors: gradientColors,
+            config: _sevenSegmentConfig,
+          ),
         );
         break;
 
       case TextDisplayStyle.pixel:
-        textWidget = PixelRetroText(
-          text: _message,
-          primaryColor: primaryColor,
-          gradientColors: gradientColors,
-          config: _pixelConfig,
-          animate: false,
+        textWidget = CustomPaint(
+          size: Size.infinite,
+          painter: PixelRetroPainter(
+            text: _message,
+            primaryColor: primaryColor,
+            gradientColors: gradientColors,
+            config: _pixelConfig,
+          ),
         );
         break;
 
       case TextDisplayStyle.stadium:
-        textWidget = StadiumBulbText(
-          text: _message,
-          primaryColor: primaryColor,
-          gradientColors: gradientColors,
-          config: _stadiumConfig,
-          animate: false,
+        textWidget = CustomPaint(
+          size: Size.infinite,
+          painter: StadiumBulbPainter(
+            text: _message,
+            primaryColor: primaryColor,
+            gradientColors: gradientColors,
+            config: _stadiumConfig,
+          ),
         );
         break;
 
@@ -2062,10 +2046,8 @@ class _CustomizationSheet extends StatelessWidget {
   final ScrollDirection scrollDirection;
   final double scrollSpeed;
   final double fontSize;
-  final FontWeight fontWeight;
   final ColorMode colorMode;
   final Color solidColor;
-  final List<Color> gradientColors;
   final Color backgroundColor;
   final bool useCustomBackground;
   final EffectMode effectMode;
@@ -2084,13 +2066,9 @@ class _CustomizationSheet extends StatelessWidget {
   final Function(ScrollDirection) onScrollDirectionChanged;
   final Function(double) onScrollSpeedChanged;
   final Function(double) onFontSizeChanged;
-  final Function(FontWeight) onFontWeightChanged;
   final Function(ColorMode) onColorModeChanged;
-  final Function(Color) onSolidColorChanged;
-  final Function(List<Color>) onGradientColorsChanged;
   final Function(bool) onUseCustomBackgroundChanged;
   final Function(EffectMode) onEffectModeChanged;
-  final Function(TextDisplayStyle) onTextStyleChanged;
   final Function(LEDMatrixConfig) onLedConfigChanged;
   final Function(NeonGlowConfig) onNeonConfigChanged;
   final Function(SevenSegmentConfig) onSevenSegmentConfigChanged;
@@ -2105,10 +2083,8 @@ class _CustomizationSheet extends StatelessWidget {
     required this.scrollDirection,
     required this.scrollSpeed,
     required this.fontSize,
-    required this.fontWeight,
     required this.colorMode,
     required this.solidColor,
-    required this.gradientColors,
     required this.backgroundColor,
     required this.useCustomBackground,
     required this.effectMode,
@@ -2127,13 +2103,9 @@ class _CustomizationSheet extends StatelessWidget {
     required this.onScrollDirectionChanged,
     required this.onScrollSpeedChanged,
     required this.onFontSizeChanged,
-    required this.onFontWeightChanged,
     required this.onColorModeChanged,
-    required this.onSolidColorChanged,
-    required this.onGradientColorsChanged,
     required this.onUseCustomBackgroundChanged,
     required this.onEffectModeChanged,
-    required this.onTextStyleChanged,
     required this.onLedConfigChanged,
     required this.onNeonConfigChanged,
     required this.onSevenSegmentConfigChanged,
@@ -3425,11 +3397,4 @@ enum ColorMode { solid, gradient, rainbow }
 
 enum EffectMode { none, pulse, sparkle }
 
-enum ScreenOrientation {
-  auto('Auto'),
-  portrait('Portrait'),
-  landscape('Landscape');
-
-  final String label;
-  const ScreenOrientation(this.label);
-}
+enum ScreenOrientation { auto, portrait, landscape }

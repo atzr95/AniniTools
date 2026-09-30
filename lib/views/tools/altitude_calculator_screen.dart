@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../viewmodels/sensor_viewmodel.dart';
 import '../../widgets/measurement_card.dart';
+import '../../utils/capped_list.dart';
 
 /// Altitude Calculator Tool - Track elevation using barometer and GPS
 class AltitudeCalculatorScreen extends StatefulWidget {
@@ -27,20 +28,11 @@ class _AltitudeCalculatorScreenState extends State<AltitudeCalculatorScreen> {
 
   void _updateHistory(double altitude, double pressure, double gpsAltitude) {
     setState(() {
-      _history.add(AltitudeReading(
-        timestamp: DateTime.now(),
-        baroAltitude: altitude,
-        gpsAltitude: gpsAltitude,
-        pressure: pressure,
-      ));
-      if (_history.length > _maxHistoryLength) {
-        _history.removeAt(0);
-      }
-
-      _pressureHistory.add(pressure);
-      if (_pressureHistory.length > _pressureTrendLength) {
-        _pressureHistory.removeAt(0);
-      }
+      _history.pushCapped(
+        AltitudeReading(baroAltitude: altitude, gpsAltitude: gpsAltitude),
+        _maxHistoryLength,
+      );
+      _pressureHistory.pushCapped(pressure, _pressureTrendLength);
     });
   }
 
@@ -293,8 +285,8 @@ class _AltitudeCalculatorScreenState extends State<AltitudeCalculatorScreen> {
                           ],
                         ),
                         const SizedBox(height: 12),
-                        _buildTrendRow(context, 'Trend', pressureTrend),
-                        _buildTrendRow(context, 'Forecast', weatherPrediction),
+                        _buildTrendRow('Trend', pressureTrend),
+                        _buildTrendRow('Forecast', weatherPrediction),
                       ],
                     ),
                   ),
@@ -323,12 +315,10 @@ class _AltitudeCalculatorScreenState extends State<AltitudeCalculatorScreen> {
                         ),
                         const SizedBox(height: 12),
                         _buildLocationRow(
-                          context,
                           'Latitude',
                           '${latitude.toStringAsFixed(6)}°',
                         ),
                         _buildLocationRow(
-                          context,
                           'Longitude',
                           '${longitude.toStringAsFixed(6)}°',
                         ),
@@ -468,7 +458,7 @@ class _AltitudeCalculatorScreenState extends State<AltitudeCalculatorScreen> {
     );
   }
 
-  Widget _buildTrendRow(BuildContext context, String label, String value) {
+  Widget _buildTrendRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -487,7 +477,7 @@ class _AltitudeCalculatorScreenState extends State<AltitudeCalculatorScreen> {
     );
   }
 
-  Widget _buildLocationRow(BuildContext context, String label, String value) {
+  Widget _buildLocationRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -679,17 +669,10 @@ class _AltitudeCalculatorScreenState extends State<AltitudeCalculatorScreen> {
 
 /// Data class for altitude readings
 class AltitudeReading {
-  final DateTime timestamp;
   final double baroAltitude;
   final double gpsAltitude;
-  final double pressure;
 
-  AltitudeReading({
-    required this.timestamp,
-    required this.baroAltitude,
-    required this.gpsAltitude,
-    required this.pressure,
-  });
+  AltitudeReading({required this.baroAltitude, required this.gpsAltitude});
 }
 
 /// Custom painter for altitude history graph

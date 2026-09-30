@@ -20,7 +20,7 @@ class BitmapFonts {
 
   /// Character bitmap data map
   /// Key: character, Value: list of 7 row values (each 5 bits wide)
-  static const Map<String, List<int>> font5x7 = {
+  static const Map<String, List<int>> _font5x7 = {
     // Uppercase letters
     'A': [0x0E, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11],
     'B': [0x1E, 0x11, 0x11, 0x1E, 0x11, 0x11, 0x1E],
@@ -187,7 +187,7 @@ class BitmapFonts {
 
   /// Emoji to natural color mapping
   /// Returns the natural/expected color for emojis
-  static const Map<String, Color> emojiColors = {
+  static const Map<String, Color> _emojiColors = {
     // Red hearts
     '♥': Color(0xFFE91E63),  // Red/Pink
     '❤': Color(0xFFE91E63),  // Red/Pink
@@ -243,31 +243,26 @@ class BitmapFonts {
     '♣': Color(0xFF212121), // Black club
   };
 
-  /// Check if a character is an emoji with a defined natural color
-  static bool hasEmojiColor(String char) {
-    return emojiColors.containsKey(char);
-  }
-
   /// Get the natural color for an emoji, or null if not an emoji
   static Color? getEmojiColor(String char) {
-    return emojiColors[char];
+    return _emojiColors[char];
   }
 
   /// Get bitmap data for a character, with fallback to space for unknown chars
-  static List<int> getCharBitmap(String char) {
+  static List<int> _getCharBitmap(String char) {
     // Check for exact match
-    if (font5x7.containsKey(char)) {
-      return font5x7[char]!;
+    if (_font5x7.containsKey(char)) {
+      return _font5x7[char]!;
     }
 
     // Try uppercase if lowercase not found
     final upper = char.toUpperCase();
-    if (font5x7.containsKey(upper)) {
-      return font5x7[upper]!;
+    if (_font5x7.containsKey(upper)) {
+      return _font5x7[upper]!;
     }
 
     // Return space for unknown characters
-    return font5x7[' ']!;
+    return _font5x7[' ']!;
   }
 
   /// Check if a specific dot should be lit for a character
@@ -279,38 +274,9 @@ class BitmapFonts {
       return false;
     }
 
-    final bitmap = getCharBitmap(char);
+    final bitmap = _getCharBitmap(char);
     // Bit 4 is leftmost column, bit 0 is rightmost
     final bitMask = 1 << (charWidth - 1 - col);
     return (bitmap[row] & bitMask) != 0;
-  }
-
-  /// Get all lit dot positions for a string
-  /// Returns list of (x, y) coordinates relative to string start
-  static List<({int x, int y})> getLitDots(String text, {int spacing = 1}) {
-    final dots = <({int x, int y})>[];
-    int xOffset = 0;
-
-    for (int i = 0; i < text.length; i++) {
-      final char = text[i];
-
-      for (int row = 0; row < charHeight; row++) {
-        for (int col = 0; col < charWidth; col++) {
-          if (isDotLit(char, row, col)) {
-            dots.add((x: xOffset + col, y: row));
-          }
-        }
-      }
-
-      xOffset += charWidth + spacing;
-    }
-
-    return dots;
-  }
-
-  /// Calculate total width in dots for a string
-  static int calculateWidth(String text, {int spacing = 1}) {
-    if (text.isEmpty) return 0;
-    return text.length * charWidth + (text.length - 1) * spacing;
   }
 }

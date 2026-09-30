@@ -1,0 +1,36 @@
+default_platform(:android)
+
+def find_aab(override = nil)
+  return override if override && File.exist?(override)
+
+  aab_dir = File.expand_path("../../build/app/outputs/bundle/release", __dir__)
+  aabs = Dir.glob("#{aab_dir}/*.aab")
+  UI.user_error!("No AAB found in #{aab_dir}.") if aabs.empty?
+
+  UI.message("Using AAB: #{aabs.first}")
+  aabs.first
+end
+
+def upload_aab(track)
+  upload_to_play_store(
+    aab: find_aab,
+    track: track,
+    release_status: "draft",
+    skip_upload_metadata: true,
+    skip_upload_changelogs: true,
+    skip_upload_images: true,
+    skip_upload_screenshots: true
+  )
+end
+
+platform :android do
+  desc "Upload to Play Internal Testing"
+  lane :beta do
+    upload_aab("internal")
+  end
+
+  desc "Upload to the Play production track as a draft"
+  lane :store do
+    upload_aab("production")
+  end
+end

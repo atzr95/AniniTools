@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../viewmodels/sensor_viewmodel.dart';
 import '../../widgets/measurement_card.dart';
+import '../../utils/capped_list.dart';
 
 /// Decibel Meter Tool - Measure sound levels with safety warnings
 class DecibelMeterScreen extends StatefulWidget {
@@ -25,10 +26,7 @@ class _DecibelMeterScreenState extends State<DecibelMeterScreen> {
       _sampleCount++;
       _averageDb = (_averageDb * (_sampleCount - 1) + db) / _sampleCount;
 
-      _history.add(db);
-      if (_history.length > _maxHistoryLength) {
-        _history.removeAt(0);
-      }
+      _history.pushCapped(db, _maxHistoryLength);
     });
   }
 
@@ -95,7 +93,6 @@ class _DecibelMeterScreenState extends State<DecibelMeterScreen> {
                       decibels: currentDb,
                       safetyLevel: safetyLevel,
                       onSurfaceColor: colorScheme.onSurface,
-                      primaryColor: colorScheme.primary,
                     ),
                     child: Container(),
                   ),
@@ -430,13 +427,11 @@ class DecibelMeterPainter extends CustomPainter {
   final double decibels;
   final SafetyLevel safetyLevel;
   final Color onSurfaceColor;
-  final Color primaryColor;
 
   DecibelMeterPainter({
     required this.decibels,
     required this.safetyLevel,
     required this.onSurfaceColor,
-    required this.primaryColor,
   });
 
   @override

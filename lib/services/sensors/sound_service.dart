@@ -12,24 +12,38 @@ class SoundService {
   SoundService._internal();
 
   final AudioRecorder _recorder = AudioRecorder();
-  StreamSubscription? _amplitudeSubscription;
   Timer? _recordingTimer;
 
-  final _decibelController = StreamController<double>.broadcast();
-  final _pitchController = StreamController<PitchData>.broadcast();
+  // Controllers own the microphone — see AccelerometerService. Both share it,
+  // so they share one count: per-controller onListen would double-start.
+  int _listeners = 0;
+  late final _decibelController = StreamController<double>.broadcast(
+    onListen: _retain,
+    onCancel: _release,
+  );
+  late final _pitchController = StreamController<PitchData>.broadcast(
+    onListen: _retain,
+    onCancel: _release,
+  );
+
+  void _retain() {
+    if (_listeners++ == 0) _start();
+  }
+
+  void _release() {
+    if (--_listeners == 0) _stop();
+  }
 
   Stream<double> get decibelStream => _decibelController.stream;
   Stream<PitchData> get pitchStream => _pitchController.stream;
 
-  double? _currentDecibel;
-  PitchData? _currentPitch;
-
   final List<double> _audioBuffer = [];
   static const int _sampleRate = 44100;
-  static const int _bufferSize = 2048; // Reduced from 4096 for faster response (~46ms)
+  static const int _bufferSize =
+      2048; // Reduced from 4096 for faster response (~46ms)
 
   /// Check if audio recording permission is granted
-  Future<bool> hasPermission() async {
+  Future<bool> _hasPermission() async {
     return await _recorder.hasPermission();
   }
 
@@ -46,17 +60,22 @@ class SoundService {
   }
 
   /// Start listening to audio for decibel and pitch analysis
-  Future<void> startListening() async {
-    // Stop any existing recording first
-    await stopListening();
-
+  Future<void> _start() async {
     try {
+      // A rapid re-subscribe can race the fire-and-forget _stop() above it.
+      await _stop();
+
       // Request permission if not granted
-      if (!await hasPermission()) {
+      if (!await _hasPermission()) {
         debugPrint('Audio recording permission not granted - requesting...');
         // Note: Permission will be requested automatically when starting recording
         // The app needs microphone permission in AndroidManifest.xml
       }
+
+      // The last listener may have cancelled during the awaits above; _stop()
+      // would then have already run as a no-op. Opening the mic now would
+      // leave it open for the rest of the process.
+      if (_listeners == 0) return;
 
       // Start recording to stream
       final stream = await _recorder.startStream(
@@ -67,13 +86,14 @@ class SoundService {
         ),
       );
 
+      // Same race, now with the mic actually open — hand it straight back.
+      if (_listeners == 0) {
+        await _stop();
+        return;
+      }
+
       // Initialize pitch data immediately to show UI is ready
-      _currentPitch = PitchData(
-        frequency: 0.0,
-        noteName: '--',
-        magnitude: 0.0,
-      );
-      _pitchController.add(_currentPitch!);
+      _pitchController.add(PitchData(frequency: 0.0, noteName: '--'));
 
       // Process audio data for pitch detection
       stream.listen(
@@ -85,28 +105,36 @@ class SoundService {
         },
       );
 
-      // Monitor amplitude for decibel calculation
+      // Monitor amplitude for decibel calculation.
+      // A 1->0->1 flip inside the awaits above starts a second _start() body;
+      // whichever gets here first owns the timer. Overwriting it would orphan a
+      // Timer.periodic polling getAmplitude() that _stop() can never cancel.
+      if (_recordingTimer != null) return;
       _recordingTimer = Timer.periodic(const Duration(milliseconds: 100), (
         _,
       ) async {
-        final amplitude = await _recorder.getAmplitude();
+        // A timer callback has no caller to catch for it, so catch here.
+        try {
+          final amplitude = await _recorder.getAmplitude();
 
-        // amplitude.current is in dB (typically -160 to 0, where 0 is max)
-        // Convert to standard SPL scale (0-120 dB)
-        // -160 dB (silence) -> 0 dB SPL
-        // 0 dB (max) -> 120 dB SPL
-        // But we want to scale it more realistically:
-        // Typical range: -40 dB to 0 dB -> 40 dB SPL to 120 dB SPL
+          // amplitude.current is in dB (typically -160 to 0, where 0 is max)
+          // Convert to standard SPL scale (0-120 dB)
+          // -160 dB (silence) -> 0 dB SPL
+          // 0 dB (max) -> 120 dB SPL
+          // But we want to scale it more realistically:
+          // Typical range: -40 dB to 0 dB -> 40 dB SPL to 120 dB SPL
 
-        if (amplitude.current > -160) {
-          // Map -40 dB to 0 dB -> 40 dB to 120 dB
-          final db = ((amplitude.current + 40) * 2).clamp(0, 120).toDouble();
-          _currentDecibel = db;
-          _decibelController.add(_currentDecibel!);
-        } else {
-          // Complete silence
-          _currentDecibel = 0.0;
-          _decibelController.add(0.0);
+          if (amplitude.current > -160) {
+            // Map -40 dB to 0 dB -> 40 dB to 120 dB
+            _decibelController.add(
+              ((amplitude.current + 40) * 2).clamp(0, 120).toDouble(),
+            );
+          } else {
+            // Complete silence
+            _decibelController.add(0.0);
+          }
+        } catch (e) {
+          debugPrint('Amplitude read failed: $e');
         }
       });
     } catch (e) {
@@ -172,29 +200,20 @@ class SoundService {
 
       // Report pitch continuously with very low threshold for instant response
       // Threshold of 5 provides better real-time responsiveness
-      if (maxMagnitude > 5 && frequency >= 80 && frequency <= 4000) {
-        final noteName = _frequencyToNote(frequency);
-        _currentPitch = PitchData(
-          frequency: frequency,
-          noteName: noteName,
-          magnitude: maxMagnitude,
-        );
-      } else {
-        // No clear pitch detected - report silence
-        _currentPitch = PitchData(
-          frequency: 0.0,
-          noteName: '--',
-          magnitude: maxMagnitude,
-        );
-      }
-      _pitchController.add(_currentPitch!);
+      final detected = maxMagnitude > 5 && frequency >= 80 && frequency <= 4000;
+      _pitchController.add(
+        PitchData(
+          frequency: detected ? frequency : 0.0,
+          noteName: detected ? frequencyToNote(frequency) : '--',
+        ),
+      );
     } catch (e) {
       debugPrint('FFT error: $e');
     }
   }
 
   /// Convert frequency to musical note name
-  String _frequencyToNote(double frequency) {
+  static String frequencyToNote(double frequency) {
     const noteNames = [
       'C',
       'C#',
@@ -214,31 +233,23 @@ class SoundService {
     final halfSteps = 12 * (math.log(frequency / 440) / math.log(2));
     final noteIndex =
         (halfSteps.round() + 9) % 12; // +9 because A is at index 9
-    final octave =
-        ((halfSteps + 48) ~/ 12) + 4; // +48 to handle negative values
+    final octave = ((halfSteps.round() + 9) / 12).floor() + 4;
 
     return '${noteNames[noteIndex]}$octave';
   }
 
   /// Stop listening to audio
-  Future<void> stopListening() async {
-    _amplitudeSubscription?.cancel();
-    _amplitudeSubscription = null;
+  Future<void> _stop() async {
     _recordingTimer?.cancel();
     _recordingTimer = null;
     _audioBuffer.clear();
 
+    // `stop()` is what releases the microphone. The recorder itself is NOT
+    // disposed: this singleton outlives every screen and retrySoundMonitoring()
+    // reuses it, so tearing it down here would break the restart path.
     if (await _recorder.isRecording()) {
       await _recorder.stop();
     }
-  }
-
-  /// Cleanup
-  void dispose() {
-    stopListening();
-    _decibelController.close();
-    _pitchController.close();
-    _recorder.dispose();
   }
 }
 
@@ -246,11 +257,6 @@ class SoundService {
 class PitchData {
   final double frequency; // Hz
   final String noteName; // Musical note (e.g., "A4", "C#5")
-  final double magnitude; // FFT magnitude
 
-  PitchData({
-    required this.frequency,
-    required this.noteName,
-    required this.magnitude,
-  });
+  PitchData({required this.frequency, required this.noteName});
 }

@@ -1,0 +1,51 @@
+default_platform(:ios)
+
+def find_ipa(override = nil)
+  return override if override && File.exist?(override)
+
+  ipa_dir = File.expand_path("../../build/ios/ipa", __dir__)
+  ipas = Dir.glob("#{ipa_dir}/*.ipa")
+  UI.user_error!("No IPA found in #{ipa_dir}.") if ipas.empty?
+
+  UI.message("Using IPA: #{ipas.first}")
+  ipas.first
+end
+
+def setup_api_key
+  json_path = ENV["APP_STORE_CONNECT_API_KEY_JSON"] ||
+              File.expand_path("~/.appstoreconnect/api_key.json")
+  UI.user_error!("API key JSON not found: #{json_path}") unless File.exist?(json_path)
+
+  config = JSON.parse(File.read(json_path))
+  app_store_connect_api_key(
+    key_id: config.fetch("key_id"),
+    issuer_id: config.fetch("issuer_id"),
+    key_content: config.fetch("key"),
+    in_house: config.fetch("in_house", false)
+  )
+end
+
+platform :ios do
+  desc "Upload to TestFlight"
+  lane :beta do |options|
+    upload_to_testflight(
+      api_key: setup_api_key,
+      ipa: find_ipa(options[:ipa]),
+      skip_waiting_for_build_processing: true
+    )
+  end
+
+  desc "Upload to App Store Connect without submitting for review"
+  lane :store do |options|
+    upload_to_app_store(
+      api_key: setup_api_key,
+      ipa: find_ipa(options[:ipa]),
+      skip_metadata: true,
+      skip_screenshots: true,
+      skip_app_version_update: true,
+      submit_for_review: false,
+      force: true,
+      precheck_include_in_app_purchases: false
+    )
+  end
+end

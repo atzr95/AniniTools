@@ -4,7 +4,6 @@ import 'package:geolocator/geolocator.dart';
 
 // Import all sensor services
 import '../services/sensors/battery_service.dart';
-import '../services/sensors/light_service.dart';
 import '../services/sensors/magnetometer_service.dart';
 import '../services/sensors/gyroscope_service.dart';
 import '../services/sensors/proximity_service.dart';
@@ -14,13 +13,13 @@ import '../services/sensors/orientation_service.dart';
 import '../services/sensors/accelerometer_service.dart';
 import '../services/sensors/linear_acceleration_service.dart';
 import '../services/sensors/location_service.dart';
+import '../utils/capped_list.dart';
 
 /// ViewModel for sensor screen
 /// Manages all sensor data streams and card expansion states
 class SensorViewModel extends ChangeNotifier {
   // Services
   final BatteryService _batteryService = BatteryService();
-  final LightService _lightService = LightService();
   final MagnetometerService _magnetometerService = MagnetometerService();
   final GyroscopeService _gyroscopeService = GyroscopeService();
   final ProximityService _proximityService = ProximityService();
@@ -34,7 +33,6 @@ class SensorViewModel extends ChangeNotifier {
 
   // Subscriptions
   StreamSubscription? _batterySubscription;
-  StreamSubscription? _lightSubscription;
   StreamSubscription? _magnetometerSubscription;
   StreamSubscription? _gyroscopeSubscription;
   StreamSubscription? _proximitySubscription;
@@ -50,9 +48,6 @@ class SensorViewModel extends ChangeNotifier {
   int _batteryLevel = 0;
   String _batteryStatus = 'Unknown';
   bool _isCharging = false;
-
-  // Light sensor
-  double _lightLevel = 0.0;
 
   // Magnetometer
   double _magneticField = 0.0;
@@ -73,20 +68,18 @@ class SensorViewModel extends ChangeNotifier {
   String _pitchNote = '--';
 
   // Orientation
-  double _pitch = 0.0, _roll = 0.0, _azimuth = 0.0;
+  double _pitch = 0.0, _roll = 0.0;
 
   // Accelerometer (includes gravity)
   double _accelX = 0.0, _accelY = 0.0, _accelZ = 0.0;
   double _accelMagnitude = 0.0;
 
   // Linear Acceleration (gravity removed - for movement detection)
-  double _linearAccelX = 0.0, _linearAccelY = 0.0, _linearAccelZ = 0.0;
-  double _linearAccelMagnitude = 0.0;
+  double _linearAccelY = 0.0;
 
   // GPS/Location
   double _latitude = 0.0, _longitude = 0.0, _altitude = 0.0;
   double _gpsSpeed = 0.0; // m/s from GPS
-  double _gpsAccuracy = 0.0;
   bool _hasLocationPermission = false;
   bool _isLoadingGPS = false;
   String _gpsStatus = 'Waiting...';
@@ -95,13 +88,16 @@ class SensorViewModel extends ChangeNotifier {
   bool _soundPermissionDenied = false;
   bool get soundPermissionDenied => _soundPermissionDenied;
 
+  // Set in dispose(). The async start paths below await a permission prompt or
+  // a GPS fix before subscribing; without this they would subscribe after
+  // dispose() already ran and pin the recorder / position stream on forever.
+  bool _disposed = false;
+
   // Card expansion states
   final Map<String, bool> _expandedCards = {};
 
   // Sensor availability tracking
   final Map<String, bool> _sensorAvailability = {
-    'battery': true, // Battery always available
-    'light': false,
     'magnetic': false,
     'gyroscope': false,
     'proximity': false,
@@ -114,7 +110,6 @@ class SensorViewModel extends ChangeNotifier {
 
   // Graph data buffers (for charts)
   final Map<String, List<double>> _graphData = {
-    'light': [],
     'magnetic': [],
     'decibel': [],
     'pitch': [],
@@ -127,17 +122,13 @@ class SensorViewModel extends ChangeNotifier {
   Timer? _uiUpdateTimer;
   bool _hasDataToUpdate = false;
   static const _uiUpdateInterval = Duration(
-    milliseconds: 100,
-  ); // 10 FPS max - reduced for better performance
+    milliseconds: 200,
+  ); // 5 FPS is sufficient for dashboard readings and charts.
 
   // Getters for battery
   int get batteryLevel => _batteryLevel;
   String get batteryStatus => _batteryStatus;
   bool get isCharging => _isCharging;
-
-  // Getters for light
-  double get lightLevel => _lightLevel;
-  List<double> get lightGraphData => _graphData['light']!;
 
   // Getters for magnetic
   double get magneticField => _magneticField;
@@ -166,7 +157,6 @@ class SensorViewModel extends ChangeNotifier {
   // Getters for orientation
   double get pitch => _pitch;
   double get roll => _roll;
-  double get azimuth => _azimuth;
 
   // Getters for accelerometer
   double get accelX => _accelX;
@@ -176,10 +166,7 @@ class SensorViewModel extends ChangeNotifier {
   List<double> get accelerometerGraphData => _graphData['accelerometer']!;
 
   // Getters for linear acceleration (gravity removed)
-  double get linearAccelX => _linearAccelX;
   double get linearAccelY => _linearAccelY;
-  double get linearAccelZ => _linearAccelZ;
-  double get linearAccelMagnitude => _linearAccelMagnitude;
 
   // Getters for GPS
   double get latitude => _latitude;
@@ -187,7 +174,6 @@ class SensorViewModel extends ChangeNotifier {
   double get altitude => _altitude;
   double get gpsSpeed => _gpsSpeed; // m/s
   double get gpsSpeedKmh => _gpsSpeed * 3.6; // km/h
-  double get gpsAccuracy => _gpsAccuracy;
   bool get hasLocationPermission => _hasLocationPermission;
   bool get isLoadingGPS => _isLoadingGPS;
   String get gpsStatus => _gpsStatus;
@@ -199,20 +185,22 @@ class SensorViewModel extends ChangeNotifier {
   bool isSensorAvailable(String sensorName) =>
       _sensorAvailability[sensorName] ?? false;
 
-  /// Initialize all available sensors
+  /// Initialize all available sensors.
+  /// Subscribing to a sensor service starts it: every one runs its platform
+  /// subscription only while it has listeners. Sound and location still wait on
+  /// a permission flow before subscribing, but neither is stopped by hand.
   Future<void> initialize() async {
     // Start UI update timer
     _startUIUpdateTimer();
 
-    await _startBatterySensor();
-    await _startLightSensor();
-    await _startMagnetometer();
-    await _startGyroscope();
-    await _startProximitySensor();
-    await _startPressureSensor();
-    await _startOrientationSensor();
-    await _startAccelerometer();
-    await _startLinearAcceleration();
+    _startBatterySensor();
+    _startMagnetometer();
+    _startGyroscope();
+    _startProximitySensor();
+    _startPressureSensor();
+    _startOrientationSensor();
+    _startAccelerometer();
+    _startLinearAcceleration();
     await _requestLocationPermission();
     await startSoundMonitoring(); // Start sound monitoring automatically
   }
@@ -233,8 +221,7 @@ class SensorViewModel extends ChangeNotifier {
   }
 
   /// Battery sensor
-  Future<void> _startBatterySensor() async {
-    await _batteryService.startListening();
+  void _startBatterySensor() {
     _batterySubscription = _batteryService.stream.listen((info) {
       _batteryLevel = info.level;
       _batteryStatus = info.state;
@@ -243,24 +230,9 @@ class SensorViewModel extends ChangeNotifier {
     });
   }
 
-  /// Light sensor
-  Future<void> _startLightSensor() async {
-    final available = await _lightService.isAvailable();
-    _sensorAvailability['light'] = available;
-    if (available) {
-      await _lightService.startListening();
-      _lightSubscription = _lightService.stream.listen((lux) {
-        _lightLevel = lux;
-        _addGraphData('light', lux);
-        _scheduleUIUpdate();
-      });
-    }
-  }
-
   /// Magnetometer
-  Future<void> _startMagnetometer() async {
+  void _startMagnetometer() {
     try {
-      _magnetometerService.startListening();
       _magnetometerSubscription = _magnetometerService.stream.listen((field) {
         _magneticField = field;
         _addGraphData('magnetic', field);
@@ -273,9 +245,8 @@ class SensorViewModel extends ChangeNotifier {
   }
 
   /// Gyroscope
-  Future<void> _startGyroscope() async {
+  void _startGyroscope() {
     try {
-      await _gyroscopeService.startListening();
       _gyroscopeSubscription = _gyroscopeService.stream.listen((data) {
         _gyroX = data.x;
         _gyroY = data.y;
@@ -291,9 +262,8 @@ class SensorViewModel extends ChangeNotifier {
   }
 
   /// Proximity sensor
-  Future<void> _startProximitySensor() async {
+  void _startProximitySensor() {
     try {
-      await _proximityService.startListening();
       _proximitySubscription = _proximityService.stream.listen((isNear) {
         _isNear = isNear;
         _scheduleUIUpdate();
@@ -305,9 +275,8 @@ class SensorViewModel extends ChangeNotifier {
   }
 
   /// Pressure sensor
-  Future<void> _startPressureSensor() async {
+  void _startPressureSensor() {
     try {
-      await _pressureService.startListening();
       _pressureSubscription = _pressureService.stream.listen(
         (hPa) {
           _pressure = hPa;
@@ -326,13 +295,11 @@ class SensorViewModel extends ChangeNotifier {
   }
 
   /// Orientation sensor
-  Future<void> _startOrientationSensor() async {
+  void _startOrientationSensor() {
     try {
-      await _orientationService.startListening();
       _orientationSubscription = _orientationService.stream.listen((data) {
         _pitch = data.pitch;
         _roll = data.roll;
-        _azimuth = data.azimuth;
         _scheduleUIUpdate();
       });
       _sensorAvailability['orientation'] = true;
@@ -342,9 +309,8 @@ class SensorViewModel extends ChangeNotifier {
   }
 
   /// Accelerometer (includes gravity)
-  Future<void> _startAccelerometer() async {
+  void _startAccelerometer() {
     try {
-      _accelerometerService.startListening();
       _accelerometerSubscription = _accelerometerService.stream.listen((data) {
         _accelX = data.x;
         _accelY = data.y;
@@ -360,15 +326,11 @@ class SensorViewModel extends ChangeNotifier {
   }
 
   /// Linear Acceleration (gravity removed - for movement detection)
-  Future<void> _startLinearAcceleration() async {
+  void _startLinearAcceleration() {
     try {
-      _linearAccelerationService.startListening();
       _linearAccelerationSubscription = _linearAccelerationService.stream
           .listen((data) {
-            _linearAccelX = data.x;
             _linearAccelY = data.y;
-            _linearAccelZ = data.z;
-            _linearAccelMagnitude = data.magnitude;
             _scheduleUIUpdate();
           });
     } catch (e) {
@@ -416,20 +378,18 @@ class SensorViewModel extends ChangeNotifier {
         _longitude = position.longitude;
         _altitude = position.altitude;
         _gpsSpeed = position.speed >= 0 ? position.speed : 0.0;
-        _gpsAccuracy = position.accuracy;
         _isLoadingGPS = false;
         _gpsStatus = 'GPS Ready';
         _scheduleUIUpdate();
       }
 
-      // Start listening to position updates
-      await _locationService.startListening();
+      // Subscribing starts the position stream.
+      if (_disposed) return;
       _locationSubscription = _locationService.stream.listen((position) {
         _latitude = position.latitude;
         _longitude = position.longitude;
         _altitude = position.altitude;
         _gpsSpeed = position.speed >= 0 ? position.speed : 0.0;
-        _gpsAccuracy = position.accuracy;
         _isLoadingGPS = false;
         _gpsStatus = position.accuracy < 10 ? 'Excellent GPS' : 'Good GPS';
         _scheduleUIUpdate();
@@ -445,6 +405,7 @@ class SensorViewModel extends ChangeNotifier {
   Future<void> startSoundMonitoring() async {
     try {
       final granted = await _soundService.requestPermission();
+      if (_disposed) return;
       if (!granted) {
         _sensorAvailability['sound'] = false;
         _soundPermissionDenied = true;
@@ -452,8 +413,8 @@ class SensorViewModel extends ChangeNotifier {
         return;
       }
 
-      await _soundService.startListening();
-
+      // Subscribing starts the recorder; the permission gate above is why the
+      // microphone can't just be left to the first listener unconditionally.
       _decibelSubscription = _soundService.decibelStream.listen((db) {
         _decibel = db;
         _addGraphData('decibel', db);
@@ -486,13 +447,6 @@ class SensorViewModel extends ChangeNotifier {
     await startSoundMonitoring();
   }
 
-  /// Stop sound monitoring
-  Future<void> stopSoundMonitoring() async {
-    await _soundService.stopListening();
-    _decibelSubscription?.cancel();
-    _pitchSubscription?.cancel();
-  }
-
   /// Toggle card expansion state
   void toggleCard(String sensorName) {
     _expandedCards[sensorName] = !(_expandedCards[sensorName] ?? false);
@@ -500,22 +454,8 @@ class SensorViewModel extends ChangeNotifier {
   }
 
   /// Add data point to graph buffer
-  void _addGraphData(String sensorName, double value) {
-    if (_graphData[sensorName] == null) return;
-
-    _graphData[sensorName]!.add(value);
-
-    // Keep buffer size limited
-    if (_graphData[sensorName]!.length > _maxGraphPoints) {
-      _graphData[sensorName]!.removeAt(0);
-    }
-  }
-
-  /// Clear graph data for a sensor
-  void clearGraphData(String sensorName) {
-    _graphData[sensorName]?.clear();
-    notifyListeners();
-  }
+  void _addGraphData(String sensorName, double value) =>
+      _graphData[sensorName]?.pushCapped(value, _maxGraphPoints);
 
   /// Open location settings
   Future<void> openLocationSettings() async {
@@ -532,12 +472,16 @@ class SensorViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
+
     // Cancel UI update timer
     _uiUpdateTimer?.cancel();
 
-    // Cancel all subscriptions
+    // Cancelling a subscription IS stopping the sensor: each service starts its
+    // platform subscription on its first listener and drops it on its last, so
+    // tearing this view model down never freezes another one that is still
+    // mounted (e.g. the Sensors screen under a pushed tool route).
     _batterySubscription?.cancel();
-    _lightSubscription?.cancel();
     _magnetometerSubscription?.cancel();
     _gyroscopeSubscription?.cancel();
     _proximitySubscription?.cancel();
@@ -548,19 +492,6 @@ class SensorViewModel extends ChangeNotifier {
     _accelerometerSubscription?.cancel();
     _linearAccelerationSubscription?.cancel();
     _locationSubscription?.cancel();
-
-    // Stop all services
-    _batteryService.stopListening();
-    _lightService.stopListening();
-    _magnetometerService.stopListening();
-    _gyroscopeService.stopListening();
-    _proximityService.stopListening();
-    _pressureService.stopListening();
-    _soundService.stopListening();
-    _orientationService.stopListening();
-    _accelerometerService.stopListening();
-    _linearAccelerationService.stopListening();
-    _locationService.stopListening();
 
     super.dispose();
   }

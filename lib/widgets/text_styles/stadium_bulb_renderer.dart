@@ -2,54 +2,21 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../data/bitmap_fonts.dart';
 import '../../models/text_style_config.dart';
-
-/// Stadium Bulb style text renderer.
-/// Renders text as large theatrical marquee bulbs with sockets.
-/// Distinctly different from LED Matrix - these are big, glowing incandescent-style bulbs.
-class StadiumBulbRenderer {
-  final StadiumBulbConfig config;
-
-  StadiumBulbRenderer({this.config = const StadiumBulbConfig()});
-
-  Widget build({
-    required BuildContext context,
-    required String text,
-    required Color primaryColor,
-    List<Color>? gradientColors,
-    double fontSize = 48.0,
-    double? animationProgress,
-  }) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return CustomPaint(
-          size: Size(constraints.maxWidth, constraints.maxHeight),
-          painter: StadiumBulbPainter(
-            text: text,
-            primaryColor: primaryColor,
-            gradientColors: gradientColors,
-            config: config,
-            animationProgress: animationProgress ?? 1.0,
-          ),
-        );
-      },
-    );
-  }
-}
+import 'gradient_color.dart';
 
 /// CustomPainter that renders text as theatrical marquee bulbs.
+/// Distinctly different from LED Matrix - these are big, glowing incandescent-style bulbs.
 class StadiumBulbPainter extends CustomPainter {
   final String text;
   final Color primaryColor;
   final List<Color>? gradientColors;
   final StadiumBulbConfig config;
-  final double animationProgress;
 
   StadiumBulbPainter({
     required this.text,
     required this.primaryColor,
     this.gradientColors,
     required this.config,
-    this.animationProgress = 1.0,
   });
 
   @override
@@ -113,22 +80,18 @@ class StadiumBulbPainter extends CustomPainter {
               Offset(bulbX + scaledBulbSize / 2, bulbY + scaledBulbSize / 2);
           final bulbRadius = scaledBulbSize / 2;
 
-          // Calculate animation visibility
-          final bulbVisible = _isBulbVisible(
-              charIndex, col, row, text.length, charWidth, charHeight);
-
           // Determine color with optional warm tint
           Color bulbColor;
           if (gradientColors != null && gradientColors!.length >= 2) {
             final gradientPos =
                 (charIndex * charWidth + col) / (textWidthBulbs - 1);
-            bulbColor = _getGradientColor(gradientPos, gradientColors!);
+            bulbColor = getGradientColor(gradientPos, gradientColors!);
           } else {
             bulbColor = primaryColor;
           }
 
           // Apply warm incandescent tint if enabled
-          if (config.warmTint && isLit && bulbVisible) {
+          if (config.warmTint && isLit) {
             bulbColor = _applyWarmTint(bulbColor);
           }
 
@@ -137,7 +100,7 @@ class StadiumBulbPainter extends CustomPainter {
             _drawSocket(canvas, bulbCenter, bulbRadius, isLit);
           }
 
-          if (isLit && bulbVisible) {
+          if (isLit) {
             // Draw glow effect if enabled (larger, softer glow)
             if (config.showGlow) {
               _drawGlow(canvas, bulbCenter, bulbRadius, bulbColor);
@@ -305,156 +268,11 @@ class StadiumBulbPainter extends CustomPainter {
     );
   }
 
-  bool _isBulbVisible(int charIndex, int col, int row, int totalChars,
-      int charWidth, int charHeight) {
-    if (animationProgress >= 1.0 ||
-        config.animation == StadiumAnimation.none) {
-      return true;
-    }
-
-    final totalBulbs = totalChars * charWidth * charHeight;
-    final bulbIndex = charIndex * charWidth * charHeight + row * charWidth + col;
-
-    switch (config.animation) {
-      case StadiumAnimation.chase:
-        final threshold = (bulbIndex + 1) / totalBulbs;
-        return animationProgress >= threshold;
-
-      case StadiumAnimation.wave:
-        final wavePos =
-            math.sin((col / charWidth + animationProgress * 2) * math.pi);
-        return wavePos > 0;
-
-      case StadiumAnimation.sparkle:
-        final random = math.sin(bulbIndex * 12.9898 + animationProgress * 100);
-        return random > (1 - animationProgress * 2);
-
-      case StadiumAnimation.none:
-        return true;
-    }
-  }
-
-  Color _getGradientColor(double position, List<Color> colors) {
-    if (colors.length < 2) return colors.first;
-    if (position <= 0) return colors.first;
-    if (position >= 1) return colors.last;
-
-    final scaledPos = position * (colors.length - 1);
-    final lowerIndex = scaledPos.floor();
-    final upperIndex = (lowerIndex + 1).clamp(0, colors.length - 1);
-    final t = scaledPos - lowerIndex;
-
-    return Color.lerp(colors[lowerIndex], colors[upperIndex], t)!;
-  }
-
   @override
   bool shouldRepaint(StadiumBulbPainter oldDelegate) {
     return text != oldDelegate.text ||
         primaryColor != oldDelegate.primaryColor ||
         gradientColors != oldDelegate.gradientColors ||
-        config != oldDelegate.config ||
-        animationProgress != oldDelegate.animationProgress;
-  }
-}
-
-/// Widget wrapper for Stadium Bulb with optional animation
-class StadiumBulbText extends StatefulWidget {
-  final String text;
-  final Color primaryColor;
-  final List<Color>? gradientColors;
-  final StadiumBulbConfig config;
-  final bool animate;
-
-  const StadiumBulbText({
-    super.key,
-    required this.text,
-    required this.primaryColor,
-    this.gradientColors,
-    this.config = const StadiumBulbConfig(),
-    this.animate = false,
-  });
-
-  @override
-  State<StadiumBulbText> createState() => _StadiumBulbTextState();
-}
-
-class _StadiumBulbTextState extends State<StadiumBulbText>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: _getAnimationDuration(),
-    );
-
-    if (widget.animate && widget.config.animation != StadiumAnimation.none) {
-      if (widget.config.animation == StadiumAnimation.sparkle ||
-          widget.config.animation == StadiumAnimation.wave) {
-        _controller.repeat();
-      } else {
-        _controller.forward();
-      }
-    } else {
-      _controller.value = 1.0;
-    }
-  }
-
-  Duration _getAnimationDuration() {
-    switch (widget.config.animation) {
-      case StadiumAnimation.chase:
-        return Duration(milliseconds: widget.text.length * 150);
-      case StadiumAnimation.wave:
-        return const Duration(milliseconds: 2000);
-      case StadiumAnimation.sparkle:
-        return const Duration(milliseconds: 1500);
-      case StadiumAnimation.none:
-        return Duration.zero;
-    }
-  }
-
-  @override
-  void didUpdateWidget(StadiumBulbText oldWidget) {
-    super.didUpdateWidget(oldWidget);
-
-    if (widget.text != oldWidget.text ||
-        widget.config.animation != oldWidget.config.animation) {
-      _controller.duration = _getAnimationDuration();
-      if (widget.animate && widget.config.animation != StadiumAnimation.none) {
-        if (widget.config.animation == StadiumAnimation.sparkle ||
-            widget.config.animation == StadiumAnimation.wave) {
-          _controller.repeat();
-        } else {
-          _controller.forward(from: 0);
-        }
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return CustomPaint(
-          size: Size.infinite,
-          painter: StadiumBulbPainter(
-            text: widget.text,
-            primaryColor: widget.primaryColor,
-            gradientColors: widget.gradientColors,
-            config: widget.config,
-            animationProgress: _controller.value,
-          ),
-        );
-      },
-    );
+        config != oldDelegate.config;
   }
 }

@@ -10,39 +10,35 @@ class BatteryService {
   BatteryService._internal();
 
   final Battery _battery = Battery();
-  StreamController<BatteryInfo> _controller =
-      StreamController<BatteryInfo>.broadcast();
+  // Controller owns the platform subscription — see AccelerometerService.
+  late final _controller = StreamController<BatteryInfo>.broadcast(
+    onListen: _start,
+    onCancel: _stop,
+  );
   StreamSubscription<BatteryState>? _batteryStateSubscription;
 
-  Stream<BatteryInfo> get stream {
-    if (_controller.isClosed) {
-      _controller = StreamController<BatteryInfo>.broadcast();
-    }
-    return _controller.stream;
-  }
+  Stream<BatteryInfo> get stream => _controller.stream;
 
-  BatteryInfo? _currentInfo;
-
-  /// Start listening to battery changes
-  Future<void> startListening() async {
-    // Ensure clean state if restarted
-    await stopListening();
-    if (_controller.isClosed) {
-      _controller = StreamController<BatteryInfo>.broadcast();
-    }
-
-    // Get initial state
+  Future<void> _start() async {
+    // Push the current level right away, then track changes.
     await _updateBatteryInfo();
 
-    // Listen for battery state changes
-    _batteryStateSubscription = _battery.onBatteryStateChanged.listen((_) async {
-      await _updateBatteryInfo();
-    });
+    // The last listener may have cancelled during that await; _stop() would
+    // then have already run as a no-op, so don't start polling behind it. A
+    // 1->0->1 flip in that same window starts a second _start() too: whichever
+    // body gets here first owns _batteryStateSubscription, and the other bails
+    // rather than overwriting a handle _stop() could never cancel.
+    if (!_controller.hasListener || _batteryStateSubscription != null) return;
+
+    _batteryStateSubscription = _battery.onBatteryStateChanged.listen(
+      (_) => _updateBatteryInfo(),
+      // Simulators have no battery: the plugin sends an UNAVAILABLE error event.
+      onError: (Object e) => debugPrint('Battery state unavailable: $e'),
+    );
   }
 
-  /// Stop listening to battery state changes. Safe to call repeatedly.
-  Future<void> stopListening() async {
-    await _batteryStateSubscription?.cancel();
+  void _stop() {
+    _batteryStateSubscription?.cancel();
     _batteryStateSubscription = null;
   }
 
@@ -52,13 +48,13 @@ class BatteryService {
       final level = await _battery.batteryLevel;
       final state = await _battery.batteryState;
 
-      _currentInfo = BatteryInfo(
-        level: level,
-        state: _batteryStateToString(state),
-        isCharging: state == BatteryState.charging,
+      _controller.add(
+        BatteryInfo(
+          level: level,
+          state: _batteryStateToString(state),
+          isCharging: state == BatteryState.charging,
+        ),
       );
-
-      _controller.add(_currentInfo!);
     } catch (e) {
       debugPrint('Error getting battery info: $e');
     }
@@ -76,20 +72,6 @@ class BatteryService {
         return 'Not Charging';
       default:
         return 'Unknown';
-    }
-  }
-
-  /// Get current battery info
-  Future<BatteryInfo> getCurrentInfo() async {
-    await _updateBatteryInfo();
-    return _currentInfo!;
-  }
-
-  /// Stop listening and cleanup
-  Future<void> dispose() async {
-    await stopListening();
-    if (!_controller.isClosed) {
-      await _controller.close();
     }
   }
 }

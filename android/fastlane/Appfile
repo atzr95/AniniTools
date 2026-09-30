@@ -1,0 +1,5 @@
+package_name(ENV["ANDROID_PACKAGE_NAME"] || "anini.aninitools")
+json_key_file(
+  ENV["ANDROID_SERVICE_ACCOUNT_JSON"] ||
+    File.expand_path("~/.android/service-account.json")
+)

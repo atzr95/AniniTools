@@ -1,9 +1,9 @@
 import 'dart:async';
-import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:sensors_plus/sensors_plus.dart';
+import 'vector3_reading.dart';
 
-/// Service for monitoring gyroscope (angular velocity)
+/// Service for monitoring gyroscope (angular velocity, rad/s)
 /// Singleton pattern ensures only one instance exists
 class GyroscopeService {
   static final GyroscopeService _instance = GyroscopeService._internal();
@@ -11,95 +11,32 @@ class GyroscopeService {
   GyroscopeService._internal();
 
   StreamSubscription? _subscription;
-  StreamController<GyroscopeData> _controller = StreamController<GyroscopeData>.broadcast();
-  Timer? _throttleTimer;
-  bool _canUpdate = true;
-  static const _throttleDuration = Duration(milliseconds: 100); // 10 updates/sec
+  // Controller owns the platform subscription — see AccelerometerService.
+  late final _controller = StreamController<Vector3Reading>.broadcast(
+    onListen: _start,
+    onCancel: _stop,
+  );
+  // 5 Hz — the pre-refactor effective rate (the old 100 ms Timer throttle never
+  // bound, the stream default was already 200 ms). SensorViewModel buffers 100
+  // graph points per raw event, so this keeps the chart span at ~20 s.
+  static const _samplingPeriod = SensorInterval.normalInterval; // 200 ms
 
-  Stream<GyroscopeData> get stream {
-    // Recreate controller if it was closed
-    if (_controller.isClosed) {
-      _controller = StreamController<GyroscopeData>.broadcast();
-    }
-    return _controller.stream;
-  }
-  GyroscopeData? _currentData;
+  Stream<Vector3Reading> get stream => _controller.stream;
 
-  /// Start listening to gyroscope
-  Future<void> startListening() async {
-    // Recreate controller if it was closed
-    if (_controller.isClosed) {
-      _controller = StreamController<GyroscopeData>.broadcast();
-    }
-
-    // Stop any existing subscription first
-    if (_subscription != null) {
-      _subscription!.cancel();
-      _subscription = null;
-    }
-
-    // Reset throttle state
-    _canUpdate = true;
-    _throttleTimer?.cancel();
-    _throttleTimer = null;
-
-    _subscription = gyroscopeEventStream().listen(
-      (event) {
-        // Calculate magnitude of angular velocity vector
-        final magnitude = math.sqrt(
-          event.x * event.x + event.y * event.y + event.z * event.z,
+  void _start() {
+    _subscription = gyroscopeEventStream(samplingPeriod: _samplingPeriod)
+        .listen(
+          (event) {
+            _controller.add(Vector3Reading(event.x, event.y, event.z));
+          },
+          onError: (error) {
+            debugPrint('Gyroscope error: $error');
+          },
         );
-
-        _currentData = GyroscopeData(
-          x: event.x,
-          y: event.y,
-          z: event.z,
-          magnitude: magnitude,
-        );
-
-        // Throttle updates to reduce CPU usage
-        if (_canUpdate) {
-          _controller.add(_currentData!);
-
-          _canUpdate = false;
-          _throttleTimer?.cancel();
-          _throttleTimer = Timer(_throttleDuration, () {
-            _canUpdate = true;
-          });
-        }
-      },
-      onError: (error) {
-        debugPrint('Gyroscope error: $error');
-      },
-    );
   }
 
-  /// Stop listening to gyroscope
-  void stopListening() {
+  void _stop() {
     _subscription?.cancel();
     _subscription = null;
-    _throttleTimer?.cancel();
-    _throttleTimer = null;
   }
-
-  /// Cleanup
-  void dispose() {
-    stopListening();
-    _controller.close();
-  }
-}
-
-/// Gyroscope data class
-class GyroscopeData {
-  final double x; // rad/s
-  final double y; // rad/s
-  final double z; // rad/s
-  final double magnitude; // Combined angular velocity magnitude
-
-  GyroscopeData({
-    required this.x,
-    required this.y,
-    required this.z,
-    required this.magnitude,
-  });
 }

@@ -1,5 +1,5 @@
 # Uncomment this line to define a global platform for your project
-platform :ios, '13.0'
+platform :ios, '15.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
@@ -39,5 +39,27 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+  end
+
+  # ponytail: FlutterFire's crashlytics podspec passes the project dir unquoted to a
+  # system() call, so the space in "Anini Tools" truncates the path and it never adds
+  # the dSYM upload phase. Add it here ourselves, using Xcode env vars that quote fine.
+  installer.aggregate_targets.each do |aggregate|
+    project = aggregate.user_project
+    next if project.nil?
+    project.targets.each do |target|
+      next unless target.name == 'Runner'
+      name = '[firebase_crashlytics] Crashlytics Upload Symbols'
+      next if target.shell_script_build_phases.any? { |p| p.name == name }
+      phase = target.new_shell_script_build_phase(name)
+      phase.shell_script = '"$PODS_ROOT/FirebaseCrashlytics/upload-symbols" ' \
+        '-gsp "$PROJECT_DIR/Runner/GoogleService-Info.plist" -p ios ' \
+        '"$DWARF_DSYM_FOLDER_PATH/$DWARF_DSYM_FILE_NAME"'
+      phase.input_paths = [
+        '"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}"',
+        '"$(PROJECT_DIR)/Runner/GoogleService-Info.plist"',
+      ]
+    end
+    project.save
   end
 end

@@ -59,64 +59,42 @@ class _CompassView extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Compass'),
         actions: [
-          // Calibration button
-          IconButton(
-            icon: const Icon(Icons.settings_backup_restore),
-            onPressed: () {
-              context.read<CompassViewModel>().calibrate();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Rotate device in figure-8 pattern to calibrate'),
-                  duration: Duration(seconds: 3),
-                ),
-              );
-            },
-            tooltip: 'Calibrate Compass',
+          // Calibration button - tap to start collecting, tap again to apply
+          Selector<CompassViewModel, bool>(
+            selector: (_, viewModel) => viewModel.isCalibrating,
+            builder: (context, isCalibrating, _) => IconButton(
+              icon: const Icon(Icons.settings_backup_restore),
+              color: isCalibrating ? colorScheme.primary : null,
+              onPressed: () {
+                final viewModel = context.read<CompassViewModel>();
+                final messenger = ScaffoldMessenger.of(context);
+                if (isCalibrating) {
+                  viewModel.stopCalibration();
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('Calibration applied'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                } else {
+                  viewModel.startCalibration();
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Rotate device in figure-8 pattern, then tap again to finish',
+                      ),
+                      duration: Duration(seconds: 3),
+                    ),
+                  );
+                }
+              },
+              tooltip: isCalibrating ? 'Finish Calibration' : 'Calibrate Compass',
+            ),
           ),
         ],
       ),
       body: Consumer<CompassViewModel>(
         builder: (context, viewModel, child) {
-          if (!viewModel.hasLocationPermission) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.location_off,
-                    size: 64,
-                    color: colorScheme.error,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Location Permission Required',
-                    style: theme.textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: 8),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 32),
-                    child: Text(
-                      'Enable location access to see GPS coordinates',
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  FilledButton.icon(
-                    onPressed: () => viewModel.initialize(),
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Request Permission'),
-                  ),
-                  const SizedBox(height: 8),
-                  TextButton.icon(
-                    onPressed: () => context.read<CompassViewModel>().openAppSettings(),
-                    icon: const Icon(Icons.settings),
-                    label: const Text('Open App Settings'),
-                  ),
-                ],
-              ),
-            );
-          }
-
           return SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) {
@@ -129,8 +107,7 @@ class _CompassView extends StatelessWidget {
                     constraints: BoxConstraints(
                       minHeight: availableHeight,
                     ),
-                    child: IntrinsicHeight(
-                      child: Column(
+                    child: Column(
                         children: [
                           const SizedBox(height: 16),
 
@@ -190,7 +167,7 @@ class _CompassView extends StatelessWidget {
                   ),
                 ),
 
-                const Spacer(),
+                const SizedBox(height: 24),
 
                 // GPS Coordinates - Compact
                 Container(
@@ -203,6 +180,13 @@ class _CompassView extends StatelessWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      if (!viewModel.hasLocationPermission) ...[
+                        const Text('Location access is needed for GPS coordinates'),
+                        TextButton(
+                          onPressed: () => viewModel.initialize(),
+                          child: const Text('Enable location'),
+                        ),
+                      ],
                       // GPS Status + Turn On Location button
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -255,7 +239,9 @@ class _CompassView extends StatelessWidget {
                       const SizedBox(height: 8),
 
                       // Compact coordinate display
-                      if (!viewModel.isLoadingGPS && viewModel.latitude != 0.0)
+                      if (viewModel.hasLocationPermission &&
+                          !viewModel.isLoadingGPS &&
+                          viewModel.latitude != 0.0)
                         Column(
                           children: [
                             Row(
@@ -298,7 +284,6 @@ class _CompassView extends StatelessWidget {
                           const SizedBox(height: 16),
                         ],
                       ),
-                    ),
                   ),
                 );
               },

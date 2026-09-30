@@ -1,38 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../models/text_style_config.dart';
-
-/// Seven-Segment display style text renderer.
-/// Renders text as classic LCD/LED segment displays.
-class SevenSegmentRenderer {
-  final SevenSegmentConfig config;
-
-  SevenSegmentRenderer({this.config = const SevenSegmentConfig()});
-
-  Widget build({
-    required BuildContext context,
-    required String text,
-    required Color primaryColor,
-    List<Color>? gradientColors,
-    double fontSize = 48.0,
-    double? animationProgress,
-  }) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return CustomPaint(
-          size: Size(constraints.maxWidth, constraints.maxHeight),
-          painter: SevenSegmentPainter(
-            text: text,
-            primaryColor: primaryColor,
-            gradientColors: gradientColors,
-            config: config,
-            animationProgress: animationProgress ?? 1.0,
-          ),
-        );
-      },
-    );
-  }
-}
+import 'gradient_color.dart';
 
 /// Seven-segment character mapping
 /// Segments are labeled:
@@ -107,7 +76,6 @@ class SevenSegmentPainter extends CustomPainter {
   final Color primaryColor;
   final List<Color>? gradientColors;
   final SevenSegmentConfig config;
-  final double animationProgress;
 
   // Segment dimensions relative to character height
   static const double segmentLengthRatio = 0.35;
@@ -119,7 +87,6 @@ class SevenSegmentPainter extends CustomPainter {
     required this.primaryColor,
     this.gradientColors,
     required this.config,
-    this.animationProgress = 1.0,
   });
 
   @override
@@ -158,16 +125,13 @@ class SevenSegmentPainter extends CustomPainter {
       Color charColor;
       if (gradientColors != null && gradientColors!.length >= 2) {
         final gradientPos = i / (text.length - 1).clamp(1, text.length);
-        charColor = _getGradientColor(gradientPos, gradientColors!);
+        charColor = getGradientColor(gradientPos, gradientColors!);
       } else {
         charColor = primaryColor;
       }
 
       // Get segment pattern
       final pattern = SevenSegmentData.getPattern(char);
-
-      // Check animation visibility
-      final isVisible = _isCharVisible(i, text.length);
 
       // Draw all 7 segments
       _drawCharacter(
@@ -180,7 +144,6 @@ class SevenSegmentPainter extends CustomPainter {
         segmentWidth,
         pattern,
         charColor,
-        isVisible,
       );
 
       // Handle special characters
@@ -194,7 +157,6 @@ class SevenSegmentPainter extends CustomPainter {
           finalCharHeight,
           segmentWidth,
           charColor,
-          isVisible,
         );
       }
     }
@@ -210,7 +172,6 @@ class SevenSegmentPainter extends CustomPainter {
     double segWidth,
     int pattern,
     Color color,
-    bool isVisible,
   ) {
     // Calculate segment positions
     final horizontalPadding = (charWidth - segLength) / 2;
@@ -224,7 +185,7 @@ class SevenSegmentPainter extends CustomPainter {
       segLength,
       segWidth,
       true, // horizontal
-      SevenSegmentData.isSegmentOn(pattern, 0) && isVisible,
+      SevenSegmentData.isSegmentOn(pattern, 0),
       color,
     );
 
@@ -236,7 +197,7 @@ class SevenSegmentPainter extends CustomPainter {
       verticalSegLength,
       segWidth,
       false, // vertical
-      SevenSegmentData.isSegmentOn(pattern, 1) && isVisible,
+      SevenSegmentData.isSegmentOn(pattern, 1),
       color,
     );
 
@@ -248,7 +209,7 @@ class SevenSegmentPainter extends CustomPainter {
       verticalSegLength,
       segWidth,
       false, // vertical
-      SevenSegmentData.isSegmentOn(pattern, 2) && isVisible,
+      SevenSegmentData.isSegmentOn(pattern, 2),
       color,
     );
 
@@ -260,7 +221,7 @@ class SevenSegmentPainter extends CustomPainter {
       segLength,
       segWidth,
       true, // horizontal
-      SevenSegmentData.isSegmentOn(pattern, 3) && isVisible,
+      SevenSegmentData.isSegmentOn(pattern, 3),
       color,
     );
 
@@ -272,7 +233,7 @@ class SevenSegmentPainter extends CustomPainter {
       verticalSegLength,
       segWidth,
       false, // vertical
-      SevenSegmentData.isSegmentOn(pattern, 4) && isVisible,
+      SevenSegmentData.isSegmentOn(pattern, 4),
       color,
     );
 
@@ -284,7 +245,7 @@ class SevenSegmentPainter extends CustomPainter {
       verticalSegLength,
       segWidth,
       false, // vertical
-      SevenSegmentData.isSegmentOn(pattern, 5) && isVisible,
+      SevenSegmentData.isSegmentOn(pattern, 5),
       color,
     );
 
@@ -296,7 +257,7 @@ class SevenSegmentPainter extends CustomPainter {
       segLength,
       segWidth,
       true, // horizontal
-      SevenSegmentData.isSegmentOn(pattern, 6) && isVisible,
+      SevenSegmentData.isSegmentOn(pattern, 6),
       color,
     );
   }
@@ -368,11 +329,10 @@ class SevenSegmentPainter extends CustomPainter {
     double charHeight,
     double dotSize,
     Color color,
-    bool isVisible,
   ) {
     final paint = Paint()
       ..style = PaintingStyle.fill
-      ..color = isVisible ? color : color.withValues(alpha: config.offSegmentOpacity);
+      ..color = color;
 
     if (char == '.') {
       // Draw decimal point at bottom-right
@@ -397,131 +357,11 @@ class SevenSegmentPainter extends CustomPainter {
     }
   }
 
-  bool _isCharVisible(int charIndex, int totalChars) {
-    if (animationProgress >= 1.0 ||
-        config.animation == SevenSegmentAnimation.none) {
-      return true;
-    }
-
-    if (config.animation == SevenSegmentAnimation.segmentWipe) {
-      final threshold = (charIndex + 1) / totalChars;
-      return animationProgress >= threshold;
-    }
-
-    return true;
-  }
-
-  Color _getGradientColor(double position, List<Color> colors) {
-    if (colors.length < 2) return colors.first;
-    if (position <= 0) return colors.first;
-    if (position >= 1) return colors.last;
-
-    final scaledPos = position * (colors.length - 1);
-    final lowerIndex = scaledPos.floor();
-    final upperIndex = (lowerIndex + 1).clamp(0, colors.length - 1);
-    final t = scaledPos - lowerIndex;
-
-    return Color.lerp(colors[lowerIndex], colors[upperIndex], t)!;
-  }
-
   @override
   bool shouldRepaint(SevenSegmentPainter oldDelegate) {
     return text != oldDelegate.text ||
         primaryColor != oldDelegate.primaryColor ||
         gradientColors != oldDelegate.gradientColors ||
-        config != oldDelegate.config ||
-        animationProgress != oldDelegate.animationProgress;
-  }
-}
-
-/// Widget wrapper for Seven-Segment with optional animation
-class SevenSegmentText extends StatefulWidget {
-  final String text;
-  final Color primaryColor;
-  final List<Color>? gradientColors;
-  final SevenSegmentConfig config;
-  final bool animate;
-
-  const SevenSegmentText({
-    super.key,
-    required this.text,
-    required this.primaryColor,
-    this.gradientColors,
-    this.config = const SevenSegmentConfig(),
-    this.animate = false,
-  });
-
-  @override
-  State<SevenSegmentText> createState() => _SevenSegmentTextState();
-}
-
-class _SevenSegmentTextState extends State<SevenSegmentText>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: _getAnimationDuration(),
-    );
-
-    if (widget.animate &&
-        widget.config.animation != SevenSegmentAnimation.none) {
-      _controller.forward();
-    } else {
-      _controller.value = 1.0;
-    }
-  }
-
-  Duration _getAnimationDuration() {
-    switch (widget.config.animation) {
-      case SevenSegmentAnimation.segmentWipe:
-        return Duration(milliseconds: widget.text.length * 100);
-      case SevenSegmentAnimation.countUp:
-        return const Duration(milliseconds: 1500);
-      case SevenSegmentAnimation.none:
-        return Duration.zero;
-    }
-  }
-
-  @override
-  void didUpdateWidget(SevenSegmentText oldWidget) {
-    super.didUpdateWidget(oldWidget);
-
-    if (widget.text != oldWidget.text ||
-        widget.config.animation != oldWidget.config.animation) {
-      _controller.duration = _getAnimationDuration();
-      if (widget.animate &&
-          widget.config.animation != SevenSegmentAnimation.none) {
-        _controller.forward(from: 0);
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return CustomPaint(
-          size: Size.infinite,
-          painter: SevenSegmentPainter(
-            text: widget.text,
-            primaryColor: widget.primaryColor,
-            gradientColors: widget.gradientColors,
-            config: widget.config,
-            animationProgress: _controller.value,
-          ),
-        );
-      },
-    );
+        config != oldDelegate.config;
   }
 }

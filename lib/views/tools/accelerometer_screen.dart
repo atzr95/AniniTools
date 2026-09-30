@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../viewmodels/sensor_viewmodel.dart';
+import '../../utils/capped_list.dart';
 
 // Shared style for section header labels.
 const TextStyle _kLabelStyle = TextStyle(
@@ -97,16 +98,10 @@ class _AccelerometerScreenState extends State<AccelerometerScreen> {
       }
 
       // Update acceleration history
-      _accelerationHistory.add(linearAccel);
-      if (_accelerationHistory.length > _maxHistoryLength) {
-        _accelerationHistory.removeAt(0);
-      }
+      _accelerationHistory.pushCapped(linearAccel, _maxHistoryLength);
 
       // Update speed history from GPS
-      _speedHistory.add(speedKmh);
-      if (_speedHistory.length > _maxHistoryLength) {
-        _speedHistory.removeAt(0);
-      }
+      _speedHistory.pushCapped(speedKmh, _maxHistoryLength);
     });
   }
 
@@ -363,10 +358,7 @@ class _AccelerometerScreenState extends State<AccelerometerScreen> {
                           SizedBox(
                             height: 150,
                             child: CustomPaint(
-                              painter: _SpeedGraphPainter(
-                                _speedHistory,
-                                colorScheme,
-                              ),
+                              painter: _SpeedGraphPainter(_speedHistory),
                               size: const Size(double.infinity, 150),
                             ),
                           ),
@@ -587,9 +579,8 @@ class _AccelerationGraphPainter extends CustomPainter {
 // Custom painter for speed graph
 class _SpeedGraphPainter extends CustomPainter {
   final List<double> data;
-  final ColorScheme colorScheme;
 
-  _SpeedGraphPainter(this.data, this.colorScheme);
+  _SpeedGraphPainter(this.data);
 
   @override
   void paint(Canvas canvas, Size size) {

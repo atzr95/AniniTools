@@ -1,24 +1,21 @@
 import 'dart:async';
-import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
-import '../services/sensors/magnetometer_service.dart';
-import '../services/sensors/accelerometer_service.dart';
+import '../services/sensors/orientation_service.dart';
 import '../services/sensors/location_service.dart';
 
-/// CompassViewModel - manages compass state and sensor fusion
-/// Fuses magnetometer + accelerometer for tilt-compensated heading
-/// Provides GPS coordinates and altitude
+/// CompassViewModel - manages compass state
+/// Consumes OrientationService (the single source of tilt-compensated heading)
+/// and smooths it at ~30fps for display. Provides GPS coordinates and altitude.
 class CompassViewModel extends ChangeNotifier {
-  final MagnetometerService _magnetometerService = MagnetometerService();
-  final AccelerometerService _accelerometerService = AccelerometerService();
+  final OrientationService _orientationService = OrientationService();
   final LocationService _locationService = LocationService();
 
-  StreamSubscription<double>? _magSubscription;
-  StreamSubscription<AccelerometerData>? _accelSubscription;
+  StreamSubscription<OrientationData>? _orientationSubscription;
   StreamSubscription<Position>? _locationSubscription;
   Timer? _notifyTimer;
   Timer? _gpsTimeoutTimer;
+  bool _sensorDataChanged = false;
 
   // Compass data with smoother filtering
   double _heading = 0.0; // Degrees from magnetic north (0-360)
@@ -29,30 +26,36 @@ class CompassViewModel extends ChangeNotifier {
   double _longitude = 0.0;
   double _altitude = 0.0;
 
-  // Calibration state
-  bool _isCalibrating = false;
-  double _magXMin = double.infinity;
-  double _magXMax = double.negativeInfinity;
-  double _magYMin = double.infinity;
-  double _magYMax = double.negativeInfinity;
-  double _magZMin = double.infinity;
-  double _magZMax = double.negativeInfinity;
   bool _hasLocationPermission = false;
   bool _isLoadingGPS = false;
   String _gpsStatus = 'Waiting for GPS...';
-
-  // Sensor values for calibration/debugging
-  double _magX = 0.0, _magY = 0.0, _magZ = 0.0;
-  double _accelX = 0.0, _accelY = 0.0, _accelZ = 9.8;
 
   // Tilt angles for gyroscope effect
   double _pitch = 0.0;
   double _roll = 0.0;
 
+  // Set in dispose(). The async start paths below await a permission prompt or
+  // a GPS fix before subscribing; without this they would subscribe (and start
+  // the display timer) after dispose() already ran, pinning the orientation
+  // sensors / position stream on with a listener no live object can cancel.
+  bool _disposed = false;
+
   // Smoothing parameters
   static const double _headingAlpha = 0.15; // Increased for smoother rotation
   static const double _displayAlpha =
       0.25; // Separate smoothing for display numbers
+
+  static const _directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  static const _directionNames = [
+    'North',
+    'Northeast',
+    'East',
+    'Southeast',
+    'South',
+    'Southwest',
+    'West',
+    'Northwest',
+  ];
 
   // Getters
   double get heading => _displayHeading;
@@ -68,6 +71,7 @@ class CompassViewModel extends ChangeNotifier {
   /// Initialize compass - start sensor streams
   Future<void> initialize() async {
     await _requestLocationPermission();
+    if (_disposed) return;
     _startSensorStreams();
     _startSmoothAnimation();
   }
@@ -89,7 +93,7 @@ class CompassViewModel extends ChangeNotifier {
             permission == LocationPermission.always;
       }
       debugPrint('🗺️ Has location permission: $_hasLocationPermission');
-      notifyListeners();
+      if (!_disposed) notifyListeners();
     } catch (e) {
       debugPrint('🗺️ Error requesting location permission: $e');
     }
@@ -97,21 +101,27 @@ class CompassViewModel extends ChangeNotifier {
 
   /// Start smooth animation timer for heading display
   void _startSmoothAnimation() {
-    // Update display heading smoothly at 60fps
-    _notifyTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
+    // Update only while the heading changes; idle sensors need no rebuilds.
+    _notifyTimer?.cancel();
+    _notifyTimer = Timer.periodic(const Duration(milliseconds: 33), (timer) {
       // Smoothly interpolate display heading towards target
-      final diff = _normalizeAngleDiff(_heading - _displayHeading);
-      _displayHeading = _normalizeAngle(_displayHeading + diff * _displayAlpha);
-      notifyListeners();
+      final nextHeading = _applySmoothing(
+        _displayHeading,
+        _heading,
+        _displayAlpha,
+      );
+      final headingChanged =
+          normalizeAngleDiff(nextHeading - _displayHeading).abs() > 0.05;
+      _displayHeading = nextHeading;
+      if (headingChanged || _sensorDataChanged) {
+        _sensorDataChanged = false;
+        notifyListeners();
+      }
     });
   }
 
   /// Start sensor streams
   void _startSensorStreams() {
-    // Start services
-    _magnetometerService.startListening();
-    _accelerometerService.startListening();
-
     // Always start GPS if we have permission
     if (_hasLocationPermission) {
       _isLoadingGPS = true;
@@ -123,34 +133,23 @@ class CompassViewModel extends ChangeNotifier {
       _startGPSService();
     }
 
-    // Listen to magnetometer + accelerometer for heading calculation
-    _magSubscription = _magnetometerService.stream.listen((_) {
-      // Get values directly from service
-      _magX = _magnetometerService.x;
-      _magY = _magnetometerService.y;
-      _magZ = _magnetometerService.z;
-
-      // Track min/max values during calibration
-      if (_isCalibrating) {
-        if (_magX < _magXMin) _magXMin = _magX;
-        if (_magX > _magXMax) _magXMax = _magX;
-        if (_magY < _magYMin) _magYMin = _magY;
-        if (_magY > _magYMax) _magYMax = _magY;
-        if (_magZ < _magZMin) _magZMin = _magZ;
-        if (_magZ > _magZMax) _magZMax = _magZ;
+    // Orientation service owns the tilt-compensated heading math. Subscribing
+    // starts it; the permission-retry button can call initialize() again, so
+    // drop any previous subscription rather than pinning the sensor on with a
+    // listener nothing will ever cancel.
+    _orientationSubscription?.cancel();
+    _orientationSubscription = _orientationService.stream.listen((data) {
+      if (data.pitch != _pitch ||
+          data.roll != _roll ||
+          normalizeAngleDiff(data.azimuth - _heading).abs() > 0.05) {
+        _sensorDataChanged = true;
       }
-
-      _calculateHeading();
+      _pitch = data.pitch;
+      _roll = data.roll;
+      // Apply enhanced smoothing with wrap-around handling
+      _heading = _applySmoothing(_heading, data.azimuth, _headingAlpha);
+      // Don't call notifyListeners() here - the display timer handles it
     });
-
-    _accelSubscription = _accelerometerService.stream.listen((data) {
-      _accelX = data.x;
-      _accelY = data.y;
-      _accelZ = data.z;
-      _calculateHeading();
-    });
-
-    // Don't call notifyListeners() here - let the timer handle it
   }
 
   /// Start GPS service
@@ -158,6 +157,7 @@ class CompassViewModel extends ChangeNotifier {
     // Early check for location services
     try {
       final servicesEnabled = await _locationService.isLocationServiceEnabled();
+      if (_disposed) return;
       debugPrint('🗺️ Location services enabled: $servicesEnabled');
       if (!servicesEnabled) {
         _isLoadingGPS = false;
@@ -167,6 +167,7 @@ class CompassViewModel extends ChangeNotifier {
         return;
       }
     } catch (e) {
+      if (_disposed) return;
       debugPrint('🗺️ Error checking location services: $e');
       _isLoadingGPS = false;
       _gpsStatus = 'GPS Error: $e';
@@ -179,11 +180,13 @@ class CompassViewModel extends ChangeNotifier {
     try {
       debugPrint('🗺️ Requesting initial GPS position...');
       final position = await _locationService.getCurrentPosition();
+      if (_disposed) return;
       debugPrint('🗺️ Got position: $position');
       if (position != null) {
         _latitude = position.latitude;
         _longitude = position.longitude;
         _altitude = position.altitude;
+        _sensorDataChanged = true;
         _isLoadingGPS = false;
         _gpsStatus = 'GPS Ready';
         _cancelGPSTimeout();
@@ -199,6 +202,7 @@ class CompassViewModel extends ChangeNotifier {
         notifyListeners();
       }
     } catch (error) {
+      if (_disposed) return;
       _isLoadingGPS = false;
       _gpsStatus = 'GPS Error: $error';
       _cancelGPSTimeout();
@@ -206,10 +210,10 @@ class CompassViewModel extends ChangeNotifier {
       notifyListeners();
     }
 
-    // Start location service streaming
-    await _locationService.startListening();
-
-    // Listen to location updates
+    // Subscribing starts the location stream. initialize() can run again from
+    // the permission-retry button, so drop any previous subscription first.
+    if (_disposed) return;
+    _locationSubscription?.cancel();
     _locationSubscription = _locationService.stream.listen(
       (position) {
         _latitude = position.latitude;
@@ -217,6 +221,7 @@ class CompassViewModel extends ChangeNotifier {
         _altitude = position.altitude;
         _isLoadingGPS = false;
         _cancelGPSTimeout();
+        _sensorDataChanged = true;
 
         // Update GPS status based on accuracy
         if (position.accuracy < 10) {
@@ -249,12 +254,14 @@ class CompassViewModel extends ChangeNotifier {
         try {
           final servicesEnabled = await _locationService
               .isLocationServiceEnabled();
+          if (_disposed) return;
           if (!servicesEnabled) {
             _gpsStatus = 'Location services are OFF';
           } else {
             _gpsStatus = 'No GPS Signal';
           }
         } catch (_) {
+          if (_disposed) return;
           _gpsStatus = 'No GPS Signal';
         }
         _isLoadingGPS = false;
@@ -268,158 +275,62 @@ class CompassViewModel extends ChangeNotifier {
     _gpsTimeoutTimer = null;
   }
 
-  /// Calculate heading from magnetometer and accelerometer
-  /// Uses tilt compensation for accurate readings
-  void _calculateHeading() {
-    // Get accelerometer values (normalized)
-    final double ax = _accelX;
-    final double ay = _accelY;
-    final double az = _accelZ;
-
-    // Get magnetometer values
-    final double mx = _magX;
-    final double my = _magY;
-    final double mz = _magZ;
-
-    // Calculate pitch and roll from accelerometer
-    final double pitch = atan2(ay, sqrt(ax * ax + az * az));
-    final double roll = atan2(-ax, az);
-
-    // Store pitch and roll for gyroscope effect
-    _pitch = pitch;
-    _roll = roll;
-
-    // Tilt compensation
-    // Rotate magnetometer values to compensate for device tilt
-    final double magXComp = mx * cos(pitch) + mz * sin(pitch);
-    final double magYComp =
-        mx * sin(roll) * sin(pitch) +
-        my * cos(roll) -
-        mz * sin(roll) * cos(pitch);
-
-    // Calculate heading (azimuth) in radians
-    // Use atan2(y, x) where standard math 0° = East, but we want 0° = North
-    // So we need to rotate by 90° counter-clockwise: use atan2(-x, y)
-    double newHeading = atan2(-magXComp, magYComp);
-
-    // Convert to degrees and normalize to 0-360
-    newHeading = newHeading * 180 / pi;
-    if (newHeading < 0) {
-      newHeading += 360;
-    }
-
-    // Apply enhanced smoothing with wrap-around handling
-    _heading = _applySmoothing(_heading, newHeading, _headingAlpha);
-
-    // Don't call notifyListeners() here - let the timer handle it for smooth 60fps updates
-  }
-
   /// Apply low-pass filter for smooth heading changes
   double _applySmoothing(double oldValue, double newValue, double alpha) {
-    final double diff = _normalizeAngleDiff(newValue - oldValue);
-    final double smoothed = _normalizeAngle(oldValue + alpha * diff);
-    return smoothed;
+    return normalizeAngle(
+      oldValue + alpha * normalizeAngleDiff(newValue - oldValue),
+    );
   }
 
-  /// Normalize angle difference to -180 to 180 range
-  double _normalizeAngleDiff(double diff) {
-    if (diff > 180) {
-      return diff - 360;
-    } else if (diff < -180) {
-      return diff + 360;
-    }
-    return diff;
-  }
+  /// Normalize angle difference to -180 to 180 range.
+  /// Already-in-range diffs pass through untouched so that exactly ±180 keeps
+  /// its sign — the modulo alone would collapse +180 to -180 and flip the
+  /// smoothing filter's direction as the target crosses the antipode.
+  static double normalizeAngleDiff(double diff) =>
+      diff.abs() <= 180 ? diff : (diff + 540) % 360 - 180;
 
-  /// Normalize angle to 0-360 range
-  double _normalizeAngle(double angle) {
-    double normalized = angle;
-    while (normalized < 0) {
-      normalized += 360;
-    }
-    while (normalized >= 360) {
-      normalized -= 360;
-    }
-    return normalized;
-  }
+  /// Normalize angle to 0-360 range (Dart's % is already non-negative)
+  static double normalizeAngle(double angle) => angle % 360;
+
+  /// Index of the 45° compass bucket a heading falls into (0 = N, 1 = NE, ...)
+  static int directionIndex(double heading) => ((heading + 22.5) ~/ 45) % 8;
 
   /// Get cardinal direction text (N, NE, E, SE, S, SW, W, NW)
-  String getDirectionText() {
-    final h = _displayHeading;
-    if (h >= 337.5 || h < 22.5) return 'N';
-    if (h >= 22.5 && h < 67.5) return 'NE';
-    if (h >= 67.5 && h < 112.5) return 'E';
-    if (h >= 112.5 && h < 157.5) return 'SE';
-    if (h >= 157.5 && h < 202.5) return 'S';
-    if (h >= 202.5 && h < 247.5) return 'SW';
-    if (h >= 247.5 && h < 292.5) return 'W';
-    if (h >= 292.5 && h < 337.5) return 'NW';
-    return 'N';
-  }
+  String getDirectionText() => _directions[directionIndex(_displayHeading)];
 
   /// Get full direction name
-  String getFullDirectionName() {
-    final h = _displayHeading;
-    if (h >= 337.5 || h < 22.5) return 'North';
-    if (h >= 22.5 && h < 67.5) return 'Northeast';
-    if (h >= 67.5 && h < 112.5) return 'East';
-    if (h >= 112.5 && h < 157.5) return 'Southeast';
-    if (h >= 157.5 && h < 202.5) return 'South';
-    if (h >= 202.5 && h < 247.5) return 'Southwest';
-    if (h >= 247.5 && h < 292.5) return 'West';
-    if (h >= 292.5 && h < 337.5) return 'Northwest';
-    return 'North';
-  }
+  String getFullDirectionName() =>
+      _directionNames[directionIndex(_displayHeading)];
 
   /// Start compass calibration (user should rotate device in figure-8 pattern)
   void startCalibration() {
-    _isCalibrating = true;
-    // Reset calibration bounds
-    _magXMin = double.infinity;
-    _magXMax = double.negativeInfinity;
-    _magYMin = double.infinity;
-    _magYMax = double.negativeInfinity;
-    _magZMin = double.infinity;
-    _magZMax = double.negativeInfinity;
+    _orientationService.startCalibration();
     notifyListeners();
-    debugPrint('Compass calibration started - rotate device in figure-8 pattern');
   }
 
   /// Stop calibration and apply the calibration offsets
   void stopCalibration() {
-    if (!_isCalibrating) return;
-
-    _isCalibrating = false;
-
-    // Calculate hard iron offsets (bias correction)
-    final xOffset = (_magXMax + _magXMin) / 2;
-    final yOffset = (_magYMax + _magYMin) / 2;
-    final zOffset = (_magZMax + _magZMin) / 2;
-
-    debugPrint('Calibration complete - Offsets: X=$xOffset, Y=$yOffset, Z=$zOffset');
-    debugPrint('Ranges: X=${_magXMax - _magXMin}, Y=${_magYMax - _magYMin}, Z=${_magZMax - _magZMin}');
-
+    _orientationService.stopCalibration();
     notifyListeners();
   }
 
   /// Check if currently calibrating
-  bool get isCalibrating => _isCalibrating;
-
-  /// Legacy method for backward compatibility
-  void calibrate() {
-    startCalibration();
-  }
+  bool get isCalibrating => _orientationService.isCalibrating;
 
   @override
   void dispose() {
+    _disposed = true;
     _notifyTimer?.cancel();
     _gpsTimeoutTimer?.cancel();
-    _magSubscription?.cancel();
-    _accelSubscription?.cancel();
+    // Drop an abandoned figure-8 explicitly: the service is a singleton and the
+    // next screen mounts before this one unmounts, so its listener count may
+    // never hit zero and its own reset never fires. Completed calibrations keep
+    // their offsets — this only clears an in-progress one.
+    _orientationService.cancelCalibration();
+    // Cancelling the orientation subscription IS stopping it — the service
+    // drops its platform subscriptions when its last listener leaves.
+    _orientationSubscription?.cancel();
     _locationSubscription?.cancel();
-    _magnetometerService.stopListening();
-    _accelerometerService.stopListening();
-    _locationService.stopListening();
     super.dispose();
   }
 

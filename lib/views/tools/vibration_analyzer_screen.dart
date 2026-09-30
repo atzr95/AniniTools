@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../viewmodels/sensor_viewmodel.dart';
 import '../../widgets/measurement_card.dart';
+import '../../utils/capped_list.dart';
 
 /// Vibration Analyzer Tool - Analyze vibrations for diagnostics
 class VibrationAnalyzerScreen extends StatefulWidget {
@@ -77,10 +78,7 @@ class _VibrationAnalyzerScreenState extends State<VibrationAnalyzerScreen> {
           (_averageVibration * (_sampleCount - 1) + vibration) / _sampleCount;
 
       // Update history
-      _vibrationHistory.add(vibration);
-      if (_vibrationHistory.length > _maxHistoryLength) {
-        _vibrationHistory.removeAt(0);
-      }
+      _vibrationHistory.pushCapped(vibration, _maxHistoryLength);
 
       // Update frequency bucket
       _updateFrequencyBucket(frequency);
@@ -173,7 +171,6 @@ class _VibrationAnalyzerScreenState extends State<VibrationAnalyzerScreen> {
                       vibration: vibration,
                       vibrationLevel: vibrationLevel,
                       onSurfaceColor: colorScheme.onSurface,
-                      primaryColor: colorScheme.primary,
                     ),
                     child: Container(),
                   ),
@@ -577,13 +574,11 @@ class VibrationGaugePainter extends CustomPainter {
   final double vibration;
   final VibrationLevel vibrationLevel;
   final Color onSurfaceColor;
-  final Color primaryColor;
 
   VibrationGaugePainter({
     required this.vibration,
     required this.vibrationLevel,
     required this.onSurfaceColor,
-    required this.primaryColor,
   });
 
   @override
