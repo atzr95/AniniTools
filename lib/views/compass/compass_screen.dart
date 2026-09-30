@@ -69,11 +69,15 @@ class _CompassView extends StatelessWidget {
                 final viewModel = context.read<CompassViewModel>();
                 final messenger = ScaffoldMessenger.of(context);
                 if (isCalibrating) {
-                  viewModel.stopCalibration();
+                  final applied = viewModel.stopCalibration();
                   messenger.showSnackBar(
-                    const SnackBar(
-                      content: Text('Calibration applied'),
-                      duration: Duration(seconds: 2),
+                    SnackBar(
+                      content: Text(
+                        applied
+                            ? 'Calibration applied'
+                            : 'Not enough rotation. Tap and try again.',
+                      ),
+                      duration: const Duration(seconds: 2),
                     ),
                   );
                 } else {
@@ -185,6 +189,12 @@ class _CompassView extends StatelessWidget {
                         TextButton(
                           onPressed: () => viewModel.initialize(),
                           child: const Text('Enable location'),
+                        ),
+                        // After "Don't Allow" (always on iOS) the prompt never
+                        // shows again, so Settings is the only way back.
+                        TextButton(
+                          onPressed: viewModel.openAppSettings,
+                          child: const Text('Open settings'),
                         ),
                       ],
                       // GPS Status + Turn On Location button

@@ -22,14 +22,16 @@ class _FlashlightState {
   DateTime? autoOffStartTime;
   Timer? strobeTimer;
   Timer? autoOffTimer;
-  bool sosActive = false;
+  // Bumped by turnOff(). A strobe or SOS loop that wakes from an await with an
+  // old value stops, so it can't touch the torch the next mode now owns.
+  int run = 0;
   double? originalBrightness;
 
   Future<void> turnOff() async {
     isOn = false;
+    run++;
     strobeTimer?.cancel();
     strobeTimer = null;
-    sosActive = false;
     autoOffTimer?.cancel();
     autoOffTimer = null;
     autoOffMinutes = null;
@@ -236,16 +238,18 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
   }
 
   void _startStrobe() {
+    final run = _globalState.run;
+    bool live() => _globalState.isOn && run == _globalState.run;
     final interval = Duration(
       milliseconds: (500 / _globalState.strobeFrequency).round(),
     );
     _globalState.strobeTimer = Timer.periodic(interval, (_) async {
-      if (!_globalState.isOn) return;
+      if (!live()) return;
       try {
         await TorchLight.disableTorch();
-        if (!_globalState.isOn) return; // Check again after async operation
+        if (!live()) return; // Check again after async operation
         await Future.delayed(const Duration(milliseconds: 50));
-        if (!_globalState.isOn) return; // Check again after delay
+        if (!live()) return; // Check again after delay
         await TorchLight.enableTorch();
       } catch (e) {
         // Ignore errors during strobe
@@ -255,32 +259,34 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
 
   void _startSOS() {
     // SOS pattern using custom message (defaults to "SOS")
-    _globalState.sosActive = true;
-    _runSOSPattern();
+    _runSOSPattern(_globalState.run);
   }
 
-  Future<void> _runSOSPattern() async {
-    if (!_globalState.sosActive || !_globalState.isOn) return;
+  Future<void> _runSOSPattern(int run) async {
+    // Checked after every await: turnOff() may have given the torch to the
+    // next mode while this loop slept.
+    bool live() => _globalState.isOn && run == _globalState.run;
+    if (!live()) return;
 
     // Convert message to Morse code pattern
     final pattern = _convertToMorseCode(_customSOSMessage);
 
     try {
       for (var i = 0; i < pattern.length; i += 2) {
-        if (!_globalState.sosActive || !_globalState.isOn) break;
+        if (!live()) break;
 
         await TorchLight.enableTorch();
         await Future.delayed(Duration(milliseconds: pattern[i]));
+        if (!live()) break;
         await TorchLight.disableTorch();
         await Future.delayed(Duration(milliseconds: pattern[i + 1]));
       }
 
-      if (_globalState.sosActive && _globalState.isOn) {
-        _runSOSPattern(); // Repeat
+      if (live()) {
+        _runSOSPattern(run); // Repeat
       }
     } catch (e) {
-      // Stop SOS on error
-      _globalState.sosActive = false;
+      // Stop SOS on error (no repeat is scheduled)
     }
   }
 

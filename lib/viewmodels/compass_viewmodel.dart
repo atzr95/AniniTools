@@ -40,10 +40,11 @@ class CompassViewModel extends ChangeNotifier {
   // sensors / position stream on with a listener no live object can cancel.
   bool _disposed = false;
 
-  // Smoothing parameters
-  static const double _headingAlpha = 0.15; // Increased for smoother rotation
-  static const double _displayAlpha =
-      0.25; // Separate smoothing for display numbers
+  // Smoothing parameters. Tuned to keep the 1.1.7 needle speed: that build
+  // smoothed at 10 Hz with 0.15 and redrew at 60 fps with 0.25. Now the heading
+  // arrives at 5 Hz and the display runs at 30 fps, so each step is bigger.
+  static const double _headingAlpha = 0.28; // 1 - 0.85^2
+  static const double _displayAlpha = 0.44; // 1 - 0.75^2
 
   static const _directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
   static const _directionNames = [
@@ -308,10 +309,12 @@ class CompassViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Stop calibration and apply the calibration offsets
-  void stopCalibration() {
-    _orientationService.stopCalibration();
+  /// Stop calibration and apply the calibration offsets.
+  /// Returns false when the device did not turn enough (old offsets kept).
+  bool stopCalibration() {
+    final applied = _orientationService.stopCalibration();
     notifyListeners();
+    return applied;
   }
 
   /// Check if currently calibrating

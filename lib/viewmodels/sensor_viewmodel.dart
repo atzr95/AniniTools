@@ -415,6 +415,11 @@ class SensorViewModel extends ChangeNotifier {
 
       // Subscribing starts the recorder; the permission gate above is why the
       // microphone can't just be left to the first listener unconditionally.
+      // Drop any earlier pair first, with no await in between: two overlapping
+      // calls (a double tap on "Enable microphone") would otherwise leak one,
+      // and a leaked listener keeps the microphone on for good.
+      _decibelSubscription?.cancel();
+      _pitchSubscription?.cancel();
       _decibelSubscription = _soundService.decibelStream.listen((db) {
         _decibel = db;
         _addGraphData('decibel', db);
@@ -438,14 +443,8 @@ class SensorViewModel extends ChangeNotifier {
 
   /// Retry sound monitoring after a permission denial.
   /// Called from the UI when the user taps "Enable microphone".
-  Future<void> retrySoundMonitoring() async {
-    // Cancel any leftover subscriptions before retrying
-    await _decibelSubscription?.cancel();
-    await _pitchSubscription?.cancel();
-    _decibelSubscription = null;
-    _pitchSubscription = null;
-    await startSoundMonitoring();
-  }
+  /// startSoundMonitoring() drops any leftover subscriptions itself.
+  Future<void> retrySoundMonitoring() => startSoundMonitoring();
 
   /// Toggle card expansion state
   void toggleCard(String sensorName) {

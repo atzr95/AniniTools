@@ -35,6 +35,10 @@ class OrientationService {
   double _magYMin = double.infinity, _magYMax = double.negativeInfinity;
   double _magZMin = double.infinity, _magZMax = double.negativeInfinity;
   double _magXOffset = 0, _magYOffset = 0, _magZOffset = 0;
+  // ponytail: fixed floor. A full turn swings each axis by about 2x the Earth's
+  // field (25-65 µT), so 50-130 µT. 30 µT rejects a tap-tap with no real turn.
+  // Tune it if good figure-8s get rejected in weak-field regions.
+  static const _minCalibrationSpread = 30.0; // µT, per axis
 
   /// True while collecting samples for calibration
   bool get isCalibrating => _isCalibrating;
@@ -48,13 +52,19 @@ class OrientationService {
     );
   }
 
-  /// Stop collecting and apply the measured hard-iron offsets
-  void stopCalibration() {
-    if (!_isCalibrating) return;
+  /// Stop collecting and apply the measured hard-iron offsets.
+  /// Returns false (and keeps the old offsets) when the device did not turn
+  /// enough: the bounds would then center on the Earth's field itself and
+  /// remove the heading instead of the bias.
+  bool stopCalibration() {
+    if (!_isCalibrating) return false;
     _isCalibrating = false;
 
-    // Ignore a calibration that never saw a sample on some axis
-    if (_magXMin > _magXMax) return;
+    if (_magXMax - _magXMin < _minCalibrationSpread ||
+        _magYMax - _magYMin < _minCalibrationSpread ||
+        _magZMax - _magZMin < _minCalibrationSpread) {
+      return false;
+    }
 
     _magXOffset = (_magXMax + _magXMin) / 2;
     _magYOffset = (_magYMax + _magYMin) / 2;
@@ -63,6 +73,7 @@ class OrientationService {
     debugPrint(
       'Calibration applied - Offsets: X=$_magXOffset, Y=$_magYOffset, Z=$_magZOffset',
     );
+    return true;
   }
 
   /// Abandon an in-progress calibration without applying it. Offsets from a
