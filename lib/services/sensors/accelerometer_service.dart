@@ -1,12 +1,14 @@
 import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:sensors_plus/sensors_plus.dart';
+
 import 'vector3_reading.dart';
 
 /// Accelerometer service - provides acceleration data (m/s², gravity included).
-/// Its only consumer is SensorViewModel's accelX/Y/Z + magnitude, shown on the
-/// sensor card and read by the vibration analyzer; the G-force meter only gates
-/// on the availability flag it sets. Not the compass or the spirit level:
+/// SensorViewModel shows its axes and magnitude on the sensor card.
+/// Vibration and vehicle tools use gravity-free acceleration instead.
+/// Not the compass or the spirit level:
 /// OrientationService subscribes to `accelerometerEventStream()` itself and
 /// feeds both, and never reads this service.
 class AccelerometerService {
@@ -39,6 +41,7 @@ class AccelerometerService {
           },
           onError: (error) {
             debugPrint('Accelerometer error: $error');
+            _controller.addError(error);
           },
         );
   }

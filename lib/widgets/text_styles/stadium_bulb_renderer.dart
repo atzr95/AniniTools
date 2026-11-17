@@ -1,5 +1,7 @@
 import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+
 import '../../data/bitmap_fonts.dart';
 import '../../models/text_style_config.dart';
 import 'gradient_color.dart';
@@ -21,7 +23,8 @@ class StadiumBulbPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (text.isEmpty) return;
+    final glyphs = BitmapFonts.glyphs(text);
+    if (glyphs.isEmpty) return;
 
     final bulbSize = config.bulbSize.pixels;
     final spacing = config.bulbSpacing.pixels;
@@ -36,7 +39,7 @@ class StadiumBulbPainter extends CustomPainter {
 
     // Calculate total text width in bulbs
     final textWidthBulbs =
-        text.length * charWidth + (text.length - 1) * charSpacing;
+        glyphs.length * charWidth + (glyphs.length - 1) * charSpacing;
     final textHeightBulbs = charHeight;
 
     // Calculate pixel dimensions
@@ -57,10 +60,12 @@ class StadiumBulbPainter extends CustomPainter {
     final scaledBulbSize = bulbSize * finalScale;
     final scaledSpacing = spacing * finalScale;
     final scaledSocketPadding = socketPadding * finalScale;
-    final scaledTotalBulbSize = scaledBulbSize + scaledSpacing + scaledSocketPadding;
+    final scaledTotalBulbSize =
+        scaledBulbSize + scaledSpacing + scaledSocketPadding;
 
     // Calculate starting position (centered)
-    final scaledTextWidth = textWidthBulbs * scaledTotalBulbSize - scaledSpacing;
+    final scaledTextWidth =
+        textWidthBulbs * scaledTotalBulbSize - scaledSpacing;
     final scaledTextHeight =
         textHeightBulbs * scaledTotalBulbSize - scaledSpacing;
     final startX = (size.width - scaledTextWidth) / 2;
@@ -68,16 +73,18 @@ class StadiumBulbPainter extends CustomPainter {
 
     // Draw each character
     double charStartX = startX;
-    for (int charIndex = 0; charIndex < text.length; charIndex++) {
-      final char = text[charIndex];
+    for (int charIndex = 0; charIndex < glyphs.length; charIndex++) {
+      final char = glyphs[charIndex];
 
       for (int row = 0; row < charHeight; row++) {
         for (int col = 0; col < charWidth; col++) {
           final isLit = BitmapFonts.isDotLit(char, row, col);
           final bulbX = charStartX + col * scaledTotalBulbSize;
           final bulbY = startY + row * scaledTotalBulbSize;
-          final bulbCenter =
-              Offset(bulbX + scaledBulbSize / 2, bulbY + scaledBulbSize / 2);
+          final bulbCenter = Offset(
+            bulbX + scaledBulbSize / 2,
+            bulbY + scaledBulbSize / 2,
+          );
           final bulbRadius = scaledBulbSize / 2;
 
           // Determine color with optional warm tint
@@ -237,7 +244,12 @@ class StadiumBulbPainter extends CustomPainter {
     );
   }
 
-  void _drawUnlitBulb(Canvas canvas, Offset center, double radius, Color color) {
+  void _drawUnlitBulb(
+    Canvas canvas,
+    Offset center,
+    double radius,
+    Color color,
+  ) {
     final paint = Paint()..style = PaintingStyle.fill;
 
     // Dark unlit bulb with subtle 3D

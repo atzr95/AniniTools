@@ -1,6 +1,8 @@
 import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../../viewmodels/sensor_viewmodel.dart';
 
 /// Spirit Level Tool - 2D bubble level for checking surface flatness
@@ -19,19 +21,8 @@ class _SpiritLevelScreenState extends State<SpiritLevelScreen> {
   // Smoothing for bubble position to reduce jitter
   double _smoothedPitch = 0.0;
   double _smoothedRoll = 0.0;
-  static const double _smoothingFactor = 0.15; // Lower = smoother (0.15 = strong smoothing)
-
-  @override
-  void initState() {
-    super.initState();
-    // Auto-calibrate on start after a short delay
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (mounted) {
-        final viewModel = Provider.of<SensorViewModel>(context, listen: false);
-        _calibrate(viewModel);
-      }
-    });
-  }
+  static const double _smoothingFactor =
+      0.15; // Lower = smoother (0.15 = strong smoothing)
 
   void _calibrate(SensorViewModel viewModel) {
     setState(() {
@@ -69,7 +60,9 @@ class _SpiritLevelScreenState extends State<SpiritLevelScreen> {
             builder: (context, viewModel, _) => IconButton(
               icon: const Icon(Icons.my_location),
               tooltip: 'Calibrate',
-              onPressed: () => _calibrate(viewModel),
+              onPressed: viewModel.isSensorAvailable('orientation')
+                  ? () => _calibrate(viewModel)
+                  : null,
             ),
           ),
           if (_isCalibrated)
@@ -82,15 +75,31 @@ class _SpiritLevelScreenState extends State<SpiritLevelScreen> {
       ),
       body: Consumer<SensorViewModel>(
         builder: (context, viewModel, _) {
+          if (!viewModel.isSensorAvailable('orientation')) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text(
+                  'Tilt sensor unavailable. Waiting for a reading.',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            );
+          }
           // Apply calibration offsets
           final adjustedPitch = viewModel.pitch - _calibrationPitch;
           final adjustedRoll = viewModel.roll - _calibrationRoll;
 
           // Apply exponential smoothing to reduce jitter
           // Only smooth if we have previous values, otherwise initialize
-          if (_isCalibrated && (_smoothedPitch.abs() > 0.001 || _smoothedRoll.abs() > 0.001)) {
-            _smoothedPitch = _smoothedPitch * (1 - _smoothingFactor) + adjustedPitch * _smoothingFactor;
-            _smoothedRoll = _smoothedRoll * (1 - _smoothingFactor) + adjustedRoll * _smoothingFactor;
+          if (_isCalibrated &&
+              (_smoothedPitch.abs() > 0.001 || _smoothedRoll.abs() > 0.001)) {
+            _smoothedPitch =
+                _smoothedPitch * (1 - _smoothingFactor) +
+                adjustedPitch * _smoothingFactor;
+            _smoothedRoll =
+                _smoothedRoll * (1 - _smoothingFactor) +
+                adjustedRoll * _smoothingFactor;
           } else {
             _smoothedPitch = adjustedPitch;
             _smoothedRoll = adjustedRoll;
@@ -174,15 +183,21 @@ class _SpiritLevelScreenState extends State<SpiritLevelScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(
-                            isLevel ? Icons.check_circle : Icons.circle_outlined,
-                            color: isLevel ? Colors.green : colorScheme.onSurface,
+                            isLevel
+                                ? Icons.check_circle
+                                : Icons.circle_outlined,
+                            color: isLevel
+                                ? Colors.green
+                                : colorScheme.onSurface,
                           ),
                           const SizedBox(width: 12),
                           Text(
                             isLevel ? 'LEVEL' : 'NOT LEVEL',
                             style: theme.textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.bold,
-                              color: isLevel ? Colors.green : colorScheme.onSurface,
+                              color: isLevel
+                                  ? Colors.green
+                                  : colorScheme.onSurface,
                             ),
                           ),
                         ],
@@ -355,8 +370,7 @@ class SpiritLevelPainter extends CustomPainter {
     canvas.drawCircle(bubbleCenter, 25, bubblePaint);
 
     // Draw bubble highlight
-    final highlightPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.5);
+    final highlightPaint = Paint()..color = Colors.white.withValues(alpha: 0.5);
     canvas.drawCircle(bubbleCenter.translate(-6, -6), 10, highlightPaint);
 
     // Draw center indicator

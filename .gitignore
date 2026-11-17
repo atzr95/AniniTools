@@ -69,10 +69,13 @@ COMPASS_IMPLEMENTATION.md
 IMPLEMENTATION_STATUS.md
 PRIVACY_POLICY.html
 PRIVACY_POLICY.md
+REVIEW.md
+SETUP.md
 scripts/
 !scripts/
 scripts/*
 !scripts/release.sh
+!scripts/preflight.sh
 
 # Release build artifacts (large binaries, signed bundles)
 release/
@@ -80,6 +83,9 @@ release/
 *.apk
 
 # Store/marketing screenshots — keep android (used in README), ignore the rest
-screenshot/ipad/
-screenshot/iphone/
-screenshot/.DS_Store
+screenshots/
+screenshot/
+/store/
+
+REVIEW.md
+SETUP.md

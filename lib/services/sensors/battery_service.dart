@@ -33,7 +33,10 @@ class BatteryService {
     _batteryStateSubscription = _battery.onBatteryStateChanged.listen(
       (_) => _updateBatteryInfo(),
       // Simulators have no battery: the plugin sends an UNAVAILABLE error event.
-      onError: (Object e) => debugPrint('Battery state unavailable: $e'),
+      onError: (Object e) {
+        debugPrint('Battery state unavailable: $e');
+        _controller.addError(e);
+      },
     );
   }
 
@@ -57,6 +60,7 @@ class BatteryService {
       );
     } catch (e) {
       debugPrint('Error getting battery info: $e');
+      _controller.addError(e);
     }
   }
 

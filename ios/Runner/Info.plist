@@ -26,6 +26,20 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>FIREBASE_ANALYTICS_COLLECTION_ENABLED</key>
+	<false/>
+	<key>FirebaseCrashlyticsCollectionEnabled</key>
+	<false/>
+	<key>GOOGLE_ANALYTICS_IDFA_COLLECTION_ENABLED</key>
+	<false/>
+	<key>GOOGLE_ANALYTICS_DEFAULT_ALLOW_ANALYTICS_STORAGE</key>
+	<false/>
+	<key>GOOGLE_ANALYTICS_DEFAULT_ALLOW_AD_STORAGE</key>
+	<false/>
+	<key>GOOGLE_ANALYTICS_DEFAULT_ALLOW_AD_USER_DATA</key>
+	<false/>
+	<key>GOOGLE_ANALYTICS_DEFAULT_ALLOW_AD_PERSONALIZATION_SIGNALS</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
@@ -35,7 +49,7 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>AniniTools needs location access to show GPS coordinates, altitude, speed, and compass direction in the sensors screen.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>AniniTools needs microphone access to measure sound levels (decibels), detect music pitch, and sync flashlight to music beats in concert mode.</string>
+	<string>AniniTools uses the microphone to show the recorded signal level, detect pitch, and pulse concert lights to music. This is not a calibrated sound-pressure or hearing-safety meter.</string>
 	<key>NSMotionUsageDescription</key>
 	<string>AniniTools needs motion sensor access to provide accelerometer, gyroscope, magnetometer, spirit level, vibration analyzer, and compass features.</string>
 	<key>UIApplicationSceneManifest</key>

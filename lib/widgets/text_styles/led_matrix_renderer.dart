@@ -1,5 +1,7 @@
 import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+
 import '../../data/bitmap_fonts.dart';
 import '../../models/text_style_config.dart';
 import 'gradient_color.dart';
@@ -20,7 +22,8 @@ class LEDMatrixPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (text.isEmpty) return;
+    final glyphs = BitmapFonts.glyphs(text);
+    if (glyphs.isEmpty) return;
 
     final dotSize = config.dotSize.pixels;
     const spacing = 2.0;
@@ -33,7 +36,7 @@ class LEDMatrixPainter extends CustomPainter {
 
     // Calculate total text width in dots
     final textWidthDots =
-        text.length * charWidth + (text.length - 1) * charSpacing;
+        glyphs.length * charWidth + (glyphs.length - 1) * charSpacing;
     final textHeightDots = charHeight;
 
     // Calculate pixel dimensions
@@ -70,8 +73,8 @@ class LEDMatrixPainter extends CustomPainter {
 
     // Draw each character
     double charStartX = startX;
-    for (int charIndex = 0; charIndex < text.length; charIndex++) {
-      final char = text[charIndex];
+    for (int charIndex = 0; charIndex < glyphs.length; charIndex++) {
+      final char = glyphs[charIndex];
 
       for (int row = 0; row < charHeight; row++) {
         for (int col = 0; col < charWidth; col++) {
@@ -125,10 +128,7 @@ class LEDMatrixPainter extends CustomPainter {
         canvas.drawCircle(center, radius, paint);
         break;
       case LEDDotShape.square:
-        canvas.drawRect(
-          Rect.fromLTWH(x, y, size, size),
-          paint,
-        );
+        canvas.drawRect(Rect.fromLTWH(x, y, size, size), paint);
         break;
       case LEDDotShape.roundedSquare:
         canvas.drawRRect(

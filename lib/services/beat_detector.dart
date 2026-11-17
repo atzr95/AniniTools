@@ -1,6 +1,8 @@
 import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:record/record.dart';
+
 import '../utils/capped_list.dart';
 
 /// Result of attempting to start a [BeatDetector].
@@ -40,6 +42,7 @@ class BeatDetector {
     this.minimumBeatIntervalMs = 500,
     this.onBeat,
     this.onSustainChange,
+    this.onStopped,
   });
 
   /// 0.0 (only very loud peaks trigger) → 1.0 (very sensitive).
@@ -52,9 +55,15 @@ class BeatDetector {
   VoidCallback? onBeat;
   void Function(bool sustainOn)? onSustainChange;
 
+  /// Fired when capture stops by itself (recorder stopped or failed), so the
+  /// screen can turn its toggle off. Not fired by [stop].
+  VoidCallback? onStopped;
+
   final AudioRecorder _recorder = AudioRecorder();
   StreamSubscription<Uint8List>? _subscription;
+  StreamSubscription<RecordState>? _stateSubscription;
   bool _running = false;
+  bool _paused = false;
   bool _sustainOn = false;
 
   // Rolling-window beat detection state
@@ -86,13 +95,31 @@ class BeatDetector {
           encoder: AudioEncoder.pcm16bits,
           sampleRate: 44100,
           numChannels: 1,
+          audioInterruption: AudioInterruptionMode.pauseResume,
         ),
       );
       _running = true;
+      _paused = false;
+      _stateSubscription = _recorder.onStateChanged().listen(
+        (state) {
+          _paused = state == RecordState.pause;
+          if (state == RecordState.stop) {
+            _stopBySystem();
+          } else if (state == RecordState.pause && _sustainOn) {
+            _sustainOn = false;
+            onSustainChange?.call(false);
+          }
+        },
+        onError: (Object error) {
+          debugPrint('BeatDetector recorder error: $error');
+          _stopBySystem();
+        },
+      );
       _subscription = stream.listen(
         _handleAudioChunk,
         onError: (Object e) {
           debugPrint('BeatDetector audio stream error: $e');
+          _stopBySystem();
         },
       );
       return BeatDetectorStartResult.success;
@@ -103,7 +130,7 @@ class BeatDetector {
   }
 
   void _handleAudioChunk(Uint8List data) {
-    if (!_running) return;
+    if (!_running || _paused) return;
 
     final energy = _calculateEnergy(data);
     final minThreshold = 0.05 * (1.0 - sensitivity * 0.7);
@@ -185,9 +212,17 @@ class BeatDetector {
     return isBeat;
   }
 
+  Future<void> _stopBySystem() async {
+    if (!_running) return;
+    await stop();
+    onStopped?.call();
+  }
+
   /// Stop streaming audio. Safe to call when not running. Idempotent.
   Future<void> stop() async {
     _running = false;
+    await _stateSubscription?.cancel();
+    _stateSubscription = null;
     await _subscription?.cancel();
     _subscription = null;
 

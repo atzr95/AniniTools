@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
@@ -10,6 +11,7 @@ class LocationService {
   LocationService._internal();
 
   StreamSubscription<Position>? _subscription;
+  Future<LocationPermission>? _permissionRequest;
   // Controller owns the platform subscription — see AccelerometerService.
   late final StreamController<Position> _controller =
       StreamController<Position>.broadcast(onListen: _start, onCancel: _stop);
@@ -30,8 +32,14 @@ class LocationService {
   }
 
   /// Request location permission
-  Future<LocationPermission> requestPermission() async {
-    return await Geolocator.requestPermission();
+  Future<LocationPermission> requestPermission() => _permissionRequest ??=
+      _requestPermission().whenComplete(() => _permissionRequest = null);
+
+  Future<LocationPermission> _requestPermission() async {
+    final permission = await Geolocator.checkPermission();
+    return permission == LocationPermission.denied
+        ? Geolocator.requestPermission()
+        : permission;
   }
 
   /// Get current position once
@@ -47,11 +55,7 @@ class LocationService {
       // Check permission
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          debugPrint('Location permission denied');
-          return null;
-        }
+        return null;
       }
 
       if (permission == LocationPermission.deniedForever) {
@@ -79,22 +83,19 @@ class LocationService {
       // Check if location service is enabled
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        debugPrint('Location services are disabled');
+        _controller.addError(StateError('Location services are off'));
         return;
       }
 
       // Check permission
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          debugPrint('Location permission denied');
-          return;
-        }
+        _controller.addError(StateError('Location permission denied'));
+        return;
       }
 
       if (permission == LocationPermission.deniedForever) {
-        debugPrint('Location permission permanently denied');
+        _controller.addError(StateError('Location permission denied'));
         return;
       }
 
@@ -105,10 +106,18 @@ class LocationService {
       // bails rather than overwriting a handle _stop() could never cancel.
       if (!_controller.hasListener || _subscription != null) return;
 
-      const LocationSettings locationSettings = LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 10, // Update every 10 meters
-      );
+      // A movement filter suppresses the final speed-zero fix when a phone stops.
+      final LocationSettings locationSettings =
+          defaultTargetPlatform == TargetPlatform.android
+          ? AndroidSettings(
+              accuracy: LocationAccuracy.high,
+              distanceFilter: 0,
+              intervalDuration: const Duration(seconds: 1),
+            )
+          : const LocationSettings(
+              accuracy: LocationAccuracy.high,
+              distanceFilter: 0,
+            );
 
       _subscription =
           Geolocator.getPositionStream(
@@ -119,11 +128,21 @@ class LocationService {
             },
             onError: (error) {
               debugPrint('Location stream error: $error');
+              _controller.addError(error);
             },
           );
     } catch (e) {
       debugPrint('Error starting location updates: $e');
+      _controller.addError(e);
     }
+  }
+
+  /// Restart the shared platform stream for a retry. While another screen
+  /// still listens, a new listener does not fire onListen, so a stream that
+  /// failed to start (services off, permission denied) would stay dead.
+  void restart() {
+    _stop();
+    if (_controller.hasListener) _start();
   }
 
   /// Stop listening to position updates

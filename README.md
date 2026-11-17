@@ -4,9 +4,9 @@
 
 ### Your phone's hidden superpowers, in one app.
 
-**Flashlight · Concert Flash · Strobe · Sound Meter · Spirit Level · Compass · Metal Detector — and a full lab of real-time sensors.**
+**Flashlight · Concert Flash · Strobe · Sound Meter · Spirit Level · Compass · Magnetic Field — and a full lab of real-time sensors.**
 
-Stop downloading ten single-purpose apps. AniniTools turns the sensors already inside your phone into a pocket toolkit you'll actually use — at a concert, on a job site, on a hike, or just finding a stud in the wall.
+AniniTools brings your phone's lights and available sensors into one toolkit — for a concert, a walk, a surface check or a sensor experiment.
 
 <br/>
 
@@ -22,7 +22,7 @@ Stop downloading ten single-purpose apps. AniniTools turns the sensors already i
 
 ![Platform](https://img.shields.io/badge/iOS%20%7C%20Android-black?style=flat-square)
 ![Price](https://img.shields.io/badge/Price-Free-brightgreen?style=flat-square)
-![No Ads Tracking](https://img.shields.io/badge/Privacy-No%20data%20collected-blue?style=flat-square)
+![Optional reports](https://img.shields.io/badge/Privacy-Reports%20off%20by%20default-blue?style=flat-square)
 
 </div>
 
@@ -34,15 +34,15 @@ Stop downloading ten single-purpose apps. AniniTools turns the sensors already i
 
 🎶 **Own the concert** — scrolling custom text in any color, beat-synced strobe, and flash patterns that turn your phone into the loudest fan in the crowd.
 
-🔊 **Pro-grade Sound Meter** — measure real decibel levels with OSHA noise warnings. Know when it's actually too loud.
+🔊 **Microphone Level** — compare the recorded signal and detect musical pitch. The microphone is not calibrated to measure physical sound pressure or hearing safety.
 
-📐 **Spirit Level & Compass** — hang the shelf straight, find true north. The tools you wish you had exactly when you need them.
+📐 **Spirit Level & Compass** — hang the shelf straight, find magnetic north. The tools you wish you had exactly when you need them.
 
-🧲 **Metal Detector** — find studs, nails, and hidden metal using your phone's magnetometer.
+🧲 **Magnetic Field** — view changes near magnetic objects. Detection depends on the object and your device; it cannot find every metal or wall stud.
 
 📊 **A real sensor lab** — live, graphed readouts for accelerometer, gyroscope, magnetometer, GPS, barometer, proximity, light, and battery. Great for makers, students, and the endlessly curious.
 
-⛰️ **Altitude & Vibration analysis** — elevation from barometer + GPS, and FFT vibration diagnostics for the tinkerers.
+⛰️ **Altitude & Vibration estimate** — view pressure/GPS altitude and a motion-based vibration estimate. These are not equipment diagnostics.
 
 > **One app. A dozen tools. Zero clutter.**
 
@@ -65,12 +65,12 @@ Stop downloading ten single-purpose apps. AniniTools turns the sensors already i
 
 | Lights & Show | Measure & Build | Sensor Lab |
 |---|---|---|
-| Instant flashlight | Sound / decibel meter | Accelerometer |
+| Instant flashlight | Microphone signal level | Accelerometer |
 | Full-screen color light | Spirit level (2D bubble) | Gyroscope |
 | Concert scrolling text | Compass + coordinates | Magnetometer |
-| Beat-synced strobe | Metal detector | GPS / location |
+| Beat-synced strobe | Magnetic field | GPS / location |
 | Custom flash patterns | Altitude calculator | Barometer (pressure) |
-| | Vibration analyzer (FFT) | Proximity · Light · Battery |
+| | Vibration estimate | Proximity · Light · Battery |
 
 ---
 
@@ -78,7 +78,7 @@ Stop downloading ten single-purpose apps. AniniTools turns the sensors already i
 
 - **Free to download.**
 - **No account, no sign-up.** Open the app and go.
-- **Your data stays on your device.** Sensor readings are processed locally — not harvested. See the [Privacy Policy](docs/privacy.html).
+- **Optional reports start off.** Sensor readings and messages are processed locally. Privacy lets you choose whether Google receives use and crash reports. Read the [English and Bahasa Malaysia policy](docs/privacy.html).
 
 ---
 
@@ -110,6 +110,8 @@ flutter pub get
 flutter run            # Android or iOS device/simulator
 ```
 
+Before a release, run `./scripts/preflight.sh secrets placeholders project review`. It checks for exposed keys, unfinished release settings, and a current passing review.
+
 ### Build releases
 
 ```bash
@@ -129,7 +131,7 @@ lib/
 └── widgets/       # reusable components (graphs, renderers, cards)
 ```
 
-**Requirements:** Flutter SDK 3.32+, Dart 3.8+. Android minSdk 21 / target 35 · iOS 12+.
+**Verified toolchain:** Flutter 3.47.4 / Dart 3.13.3. Android minSdk 24 / target 36 · iOS 15+.
 
 > Note: Firebase config (`firebase_options.dart`, `google-services.json`, `GoogleService-Info.plist`) and signing keys are intentionally not committed. Provide your own via `flutterfire configure` to build the Firebase-backed features.
 

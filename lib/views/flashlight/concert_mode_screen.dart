@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:screen_brightness/screen_brightness.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:torch_light/torch_light.dart';
+
 import '../../models/text_style_config.dart';
 import '../../services/beat_detector.dart';
 import '../../widgets/painters/color_picker_painters.dart';
@@ -51,7 +53,8 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
 
   // Beat sync and strobe
   bool _beatSyncEnabled = false;
-  double _strobeFrequency = 2.0; // Hz — also sets the min interval between beats
+  double _strobeFrequency =
+      2.0; // Hz — also sets the min interval between beats
   double _beatSensitivity = 0.5; // 0.0 (low) to 1.0 (high) - user adjustable
 
   // Beat detection is delegated to a dedicated service so this screen can
@@ -73,6 +76,7 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
   // Templates
   List<MessageTemplate> _templates = [];
   List<MessageTemplate> _favorites = [];
+  Future<void> _favoriteWrite = Future<void>.value();
 
   @override
   void initState() {
@@ -81,7 +85,8 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
     _beatDetector
       ..sensitivity = _beatSensitivity
       ..minimumBeatIntervalMs = (1000 / _strobeFrequency).round()
-      ..onSustainChange = _handleBeatSustain;
+      ..onSustainChange = _handleBeatSustain
+      ..onStopped = _handleBeatStopped;
     _initializeTemplates();
     _loadFavorites();
     _loadSettings();
@@ -122,25 +127,57 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
     }
   }
 
+  /// The microphone stopped by itself: show beat sync as off and say why.
+  void _handleBeatStopped() {
+    if (!mounted || !_beatSyncEnabled) return;
+    setState(() => _beatSyncEnabled = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Beat sync stopped: the microphone stopped'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
   void _initializeTemplates() {
     _templates = [
       MessageTemplate('MARRY ME 💍', Colors.white, [Colors.red, Colors.pink]),
-      MessageTemplate('HAPPY BIRTHDAY 🎂', Colors.yellow,
-          [Colors.orange, Colors.yellow, Colors.pink]),
-      MessageTemplate(
-          'I ❤️ MUSIC', Colors.red, [Colors.red, Colors.pink, Colors.purple]),
-      MessageTemplate('🎉 PARTY 🎉', Colors.cyan,
-          [Colors.cyan, Colors.purple, Colors.pink]),
+      MessageTemplate('HAPPY BIRTHDAY 🎂', Colors.yellow, [
+        Colors.orange,
+        Colors.yellow,
+        Colors.pink,
+      ]),
+      MessageTemplate('I ❤️ MUSIC', Colors.red, [
+        Colors.red,
+        Colors.pink,
+        Colors.purple,
+      ]),
+      MessageTemplate('🎉 PARTY 🎉', Colors.cyan, [
+        Colors.cyan,
+        Colors.purple,
+        Colors.pink,
+      ]),
       MessageTemplate('💜', Colors.purple, [Colors.purple, Colors.pink]),
-      MessageTemplate(
-          '🌟 STAR 🌟', Colors.amber, [Colors.amber, Colors.orange]),
-      MessageTemplate('DANCE 💃', Colors.pink,
-          [Colors.pink, Colors.purple, Colors.blue]),
-      MessageTemplate(
-          '🔥 LIT 🔥', Colors.orange, [Colors.red, Colors.orange, Colors.yellow]),
+      MessageTemplate('🌟 STAR 🌟', Colors.amber, [
+        Colors.amber,
+        Colors.orange,
+      ]),
+      MessageTemplate('DANCE 💃', Colors.pink, [
+        Colors.pink,
+        Colors.purple,
+        Colors.blue,
+      ]),
+      MessageTemplate('🔥 LIT 🔥', Colors.orange, [
+        Colors.red,
+        Colors.orange,
+        Colors.yellow,
+      ]),
       MessageTemplate('LOVE YOU ❤️', Colors.red, [Colors.red, Colors.pink]),
-      MessageTemplate(
-          'BEST NIGHT EVER ✨', Colors.white, [Colors.blue, Colors.purple, Colors.pink]),
+      MessageTemplate('BEST NIGHT EVER ✨', Colors.white, [
+        Colors.blue,
+        Colors.purple,
+        Colors.pink,
+      ]),
     ];
   }
 
@@ -203,9 +240,13 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
       if (neonConfigJson != null) {
         _neonConfig = NeonGlowConfig.fromJson(jsonDecode(neonConfigJson));
       }
-      final sevenSegmentConfigJson = prefs.getString('concert_seven_segment_config');
+      final sevenSegmentConfigJson = prefs.getString(
+        'concert_seven_segment_config',
+      );
       if (sevenSegmentConfigJson != null) {
-        _sevenSegmentConfig = SevenSegmentConfig.fromJson(jsonDecode(sevenSegmentConfigJson));
+        _sevenSegmentConfig = SevenSegmentConfig.fromJson(
+          jsonDecode(sevenSegmentConfigJson),
+        );
       }
       final pixelConfigJson = prefs.getString('concert_pixel_config');
       if (pixelConfigJson != null) {
@@ -213,7 +254,9 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
       }
       final stadiumConfigJson = prefs.getString('concert_stadium_config');
       if (stadiumConfigJson != null) {
-        _stadiumConfig = StadiumBulbConfig.fromJson(jsonDecode(stadiumConfigJson));
+        _stadiumConfig = StadiumBulbConfig.fromJson(
+          jsonDecode(stadiumConfigJson),
+        );
       }
 
       // Load beat sync settings
@@ -234,71 +277,112 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
       if (backgroundColorValue != null) {
         _backgroundColor = Color(backgroundColorValue);
       }
-      _useCustomBackground = prefs.getBool('concert_use_custom_background') ?? false;
+      _useCustomBackground =
+          prefs.getBool('concert_use_custom_background') ?? false;
     });
+    _updateScrollAnimation();
   }
 
   Future<void> _saveSettings() async {
     final prefs = await SharedPreferences.getInstance();
-
-    // Save message
-    await prefs.setString('concert_message', _message);
-
-    // Save scroll settings
-    await prefs.setInt('concert_scroll_direction', _scrollDirection.index);
-    await prefs.setDouble('concert_scroll_speed', _scrollSpeed);
-
-    // Save text settings
-    await prefs.setDouble('concert_font_size', _fontSize);
-    // ponytail: store index to stay compatible with FontWeight.values[index] load above
-    await prefs.setInt('concert_font_weight', _fontWeight.value ~/ 100 - 1);
-
-    // Save color settings
-    await prefs.setInt('concert_color_mode', _colorMode.index);
-    await prefs.setInt('concert_solid_color', _solidColor.toARGB32());
-    await prefs.setString('concert_gradient_colors',
-        jsonEncode(_gradientColors.map((c) => c.toARGB32()).toList()));
-
-    // Save effect settings
-    await prefs.setInt('concert_effect_mode', _effectMode.index);
-
-    // Save text style settings
-    await prefs.setInt('concert_text_style', _textStyle.index);
-    await prefs.setString('concert_led_config', jsonEncode(_ledConfig.toJson()));
-    await prefs.setString('concert_neon_config', jsonEncode(_neonConfig.toJson()));
-    await prefs.setString('concert_seven_segment_config', jsonEncode(_sevenSegmentConfig.toJson()));
-    await prefs.setString('concert_pixel_config', jsonEncode(_pixelConfig.toJson()));
-    await prefs.setString('concert_stadium_config', jsonEncode(_stadiumConfig.toJson()));
-
-    // Save beat sync settings
-    await prefs.setBool('concert_beat_sync', _beatSyncEnabled);
-    await prefs.setDouble('concert_strobe_frequency', _strobeFrequency);
-    await prefs.setDouble('concert_beat_sensitivity', _beatSensitivity);
-
-    // Save screen orientation
-    await prefs.setInt('concert_orientation', _screenOrientation.index);
-
-    // Save background color settings
-    await prefs.setInt('concert_background_color', _backgroundColor.toARGB32());
-    await prefs.setBool('concert_use_custom_background', _useCustomBackground);
+    // shortcut: settings can save partly; use one stored snapshot if all-or-nothing saves are needed.
+    await _savePreferences(prefs, [
+      prefs.setString('concert_message', _message),
+      prefs.setInt('concert_scroll_direction', _scrollDirection.index),
+      prefs.setDouble('concert_scroll_speed', _scrollSpeed),
+      prefs.setDouble('concert_font_size', _fontSize),
+      // Keep the stored index compatible with FontWeight.values on load.
+      prefs.setInt('concert_font_weight', _fontWeight.value ~/ 100 - 1),
+      prefs.setInt('concert_color_mode', _colorMode.index),
+      prefs.setInt('concert_solid_color', _solidColor.toARGB32()),
+      prefs.setString(
+        'concert_gradient_colors',
+        jsonEncode(_gradientColors.map((c) => c.toARGB32()).toList()),
+      ),
+      prefs.setInt('concert_effect_mode', _effectMode.index),
+      prefs.setInt('concert_text_style', _textStyle.index),
+      prefs.setString('concert_led_config', jsonEncode(_ledConfig.toJson())),
+      prefs.setString('concert_neon_config', jsonEncode(_neonConfig.toJson())),
+      prefs.setString(
+        'concert_seven_segment_config',
+        jsonEncode(_sevenSegmentConfig.toJson()),
+      ),
+      prefs.setString(
+        'concert_pixel_config',
+        jsonEncode(_pixelConfig.toJson()),
+      ),
+      prefs.setString(
+        'concert_stadium_config',
+        jsonEncode(_stadiumConfig.toJson()),
+      ),
+      prefs.setBool('concert_beat_sync', _beatSyncEnabled),
+      prefs.setDouble('concert_strobe_frequency', _strobeFrequency),
+      prefs.setDouble('concert_beat_sensitivity', _beatSensitivity),
+      prefs.setInt('concert_orientation', _screenOrientation.index),
+      prefs.setInt('concert_background_color', _backgroundColor.toARGB32()),
+      prefs.setBool('concert_use_custom_background', _useCustomBackground),
+    ]);
   }
 
-  Future<void> _saveFavorite(MessageTemplate template) async {
-    final prefs = await SharedPreferences.getInstance();
-    _favorites.add(template);
-    final favoritesJson =
-        _favorites.map((t) => jsonEncode(t.toJson())).toList();
-    await prefs.setStringList('concert_favorites', favoritesJson);
-    if (mounted) setState(() {});
-  }
+  Future<void> _saveFavorite(MessageTemplate template) =>
+      _saveFavorites(template);
 
-  Future<void> _removeFavorite(MessageTemplate template) async {
+  Future<void> _removeFavorite(MessageTemplate template) =>
+      _saveFavorites(template, remove: true);
+
+  Future<void> _saveFavorites(
+    MessageTemplate template, {
+    bool remove = false,
+  }) => _favoriteWrite = _favoriteWrite.then((_) async {
+    final favorites = [
+      ..._favorites.where((favorite) => favorite.text != template.text),
+      if (!remove) template,
+    ];
     final prefs = await SharedPreferences.getInstance();
-    _favorites.removeWhere((t) => t.text == template.text);
-    final favoritesJson =
-        _favorites.map((t) => jsonEncode(t.toJson())).toList();
-    await prefs.setStringList('concert_favorites', favoritesJson);
-    if (mounted) setState(() {});
+    final saved = await _savePreferences(prefs, [
+      prefs.setStringList(
+        'concert_favorites',
+        favorites.map((favorite) => jsonEncode(favorite.toJson())).toList(),
+      ),
+    ]);
+    if (saved) {
+      _favorites = favorites;
+      if (mounted) setState(() {});
+    }
+  });
+
+  Future<bool> _savePreferences(
+    SharedPreferences prefs,
+    List<Future<bool>> writes,
+  ) async {
+    try {
+      if ((await Future.wait(writes)).contains(false)) {
+        throw StateError('Preference write failed');
+      }
+      return true;
+    } catch (error) {
+      // The plugin changes its cache before the native write has succeeded.
+      try {
+        await prefs.reload();
+      } catch (reloadError) {
+        debugPrint('Could not reload preferences: $reloadError');
+      }
+      if (!mounted) return false;
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Could not save changes'),
+          content: const Text('Some changes could not be saved. Try again.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return false;
+    }
   }
 
   void _setupScrollAnimation() {
@@ -312,23 +396,24 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
 
   void _updateScrollAnimation() {
     if (_scrollDirection == ScrollDirection.horizontal) {
-      _scrollAnimation = Tween<Offset>(
-        begin: const Offset(1.0, 0.0),
-        end: const Offset(-1.0, 0.0),
-      ).animate(CurvedAnimation(
-        parent: _scrollController,
-        curve: Curves.linear,
-      ));
+      _scrollAnimation =
+          Tween<Offset>(
+            begin: const Offset(1.0, 0.0),
+            end: const Offset(-1.0, 0.0),
+          ).animate(
+            CurvedAnimation(parent: _scrollController, curve: Curves.linear),
+          );
     } else {
-      _scrollAnimation = Tween<Offset>(
-        begin: const Offset(0.0, 1.0),
-        end: const Offset(0.0, -1.0),
-      ).animate(CurvedAnimation(
-        parent: _scrollController,
-        curve: Curves.linear,
-      ));
+      _scrollAnimation =
+          Tween<Offset>(
+            begin: const Offset(0.0, 1.0),
+            end: const Offset(0.0, -1.0),
+          ).animate(
+            CurvedAnimation(parent: _scrollController, curve: Curves.linear),
+          );
     }
     _scrollController.duration = Duration(seconds: (10 / _scrollSpeed).round());
+    if (_scrollController.isAnimating) _scrollController.repeat();
   }
 
   Future<void> _enterFullscreen() async {
@@ -388,9 +473,7 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
     });
 
     // Force portrait orientation first to rotate back from landscape
-    await SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-    ]);
+    await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
 
     // Restore brightness
     await _restoreBrightness();
@@ -472,21 +555,25 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
 
   void _turnFlashlightOn() {
     if (!_flashlightOn) {
-      TorchLight.enableTorch().then((_) {
-        _flashlightOn = true;
-      }).catchError((Object e) {
-        debugPrint('Failed to enable torch during beat sync: $e');
-      });
+      TorchLight.enableTorch()
+          .then((_) {
+            _flashlightOn = true;
+          })
+          .catchError((Object e) {
+            debugPrint('Failed to enable torch during beat sync: $e');
+          });
     }
   }
 
   void _turnFlashlightOff() {
     if (_flashlightOn) {
-      TorchLight.disableTorch().then((_) {
-        _flashlightOn = false;
-      }).catchError((Object e) {
-        debugPrint('Failed to disable torch during beat sync: $e');
-      });
+      TorchLight.disableTorch()
+          .then((_) {
+            _flashlightOn = false;
+          })
+          .catchError((Object e) {
+            debugPrint('Failed to disable torch during beat sync: $e');
+          });
     }
   }
 
@@ -566,53 +653,106 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
                   runSpacing: 8,
                   alignment: WrapAlignment.center,
                   children: [
-                    _buildColorPickerButton(Colors.white, setDialogState, selectedColor, (c) {
-                      selectedColor = c;
-                      onColorSelected(c);
-                    }),
-                    _buildColorPickerButton(Colors.black, setDialogState, selectedColor, (c) {
-                      selectedColor = c;
-                      onColorSelected(c);
-                    }),
-                    _buildColorPickerButton(Colors.red, setDialogState, selectedColor, (c) {
-                      selectedColor = c;
-                      onColorSelected(c);
-                    }),
-                    _buildColorPickerButton(Colors.orange, setDialogState, selectedColor, (c) {
-                      selectedColor = c;
-                      onColorSelected(c);
-                    }),
-                    _buildColorPickerButton(Colors.yellow, setDialogState, selectedColor, (c) {
-                      selectedColor = c;
-                      onColorSelected(c);
-                    }),
-                    _buildColorPickerButton(Colors.green, setDialogState, selectedColor, (c) {
-                      selectedColor = c;
-                      onColorSelected(c);
-                    }),
-                    _buildColorPickerButton(Colors.cyan, setDialogState, selectedColor, (c) {
-                      selectedColor = c;
-                      onColorSelected(c);
-                    }),
-                    _buildColorPickerButton(Colors.blue, setDialogState, selectedColor, (c) {
-                      selectedColor = c;
-                      onColorSelected(c);
-                    }),
-                    _buildColorPickerButton(Colors.purple, setDialogState, selectedColor, (c) {
-                      selectedColor = c;
-                      onColorSelected(c);
-                    }),
-                    _buildColorPickerButton(Colors.pink, setDialogState, selectedColor, (c) {
-                      selectedColor = c;
-                      onColorSelected(c);
-                    }),
+                    _buildColorPickerButton(
+                      Colors.white,
+                      setDialogState,
+                      selectedColor,
+                      (c) {
+                        selectedColor = c;
+                        onColorSelected(c);
+                      },
+                    ),
+                    _buildColorPickerButton(
+                      Colors.black,
+                      setDialogState,
+                      selectedColor,
+                      (c) {
+                        selectedColor = c;
+                        onColorSelected(c);
+                      },
+                    ),
+                    _buildColorPickerButton(
+                      Colors.red,
+                      setDialogState,
+                      selectedColor,
+                      (c) {
+                        selectedColor = c;
+                        onColorSelected(c);
+                      },
+                    ),
+                    _buildColorPickerButton(
+                      Colors.orange,
+                      setDialogState,
+                      selectedColor,
+                      (c) {
+                        selectedColor = c;
+                        onColorSelected(c);
+                      },
+                    ),
+                    _buildColorPickerButton(
+                      Colors.yellow,
+                      setDialogState,
+                      selectedColor,
+                      (c) {
+                        selectedColor = c;
+                        onColorSelected(c);
+                      },
+                    ),
+                    _buildColorPickerButton(
+                      Colors.green,
+                      setDialogState,
+                      selectedColor,
+                      (c) {
+                        selectedColor = c;
+                        onColorSelected(c);
+                      },
+                    ),
+                    _buildColorPickerButton(
+                      Colors.cyan,
+                      setDialogState,
+                      selectedColor,
+                      (c) {
+                        selectedColor = c;
+                        onColorSelected(c);
+                      },
+                    ),
+                    _buildColorPickerButton(
+                      Colors.blue,
+                      setDialogState,
+                      selectedColor,
+                      (c) {
+                        selectedColor = c;
+                        onColorSelected(c);
+                      },
+                    ),
+                    _buildColorPickerButton(
+                      Colors.purple,
+                      setDialogState,
+                      selectedColor,
+                      (c) {
+                        selectedColor = c;
+                        onColorSelected(c);
+                      },
+                    ),
+                    _buildColorPickerButton(
+                      Colors.pink,
+                      setDialogState,
+                      selectedColor,
+                      (c) {
+                        selectedColor = c;
+                        onColorSelected(c);
+                      },
+                    ),
                   ],
                 ),
                 const SizedBox(height: 16),
                 const Divider(),
                 const SizedBox(height: 16),
                 // Custom color section
-                Text('Custom Color', style: Theme.of(context).textTheme.titleSmall),
+                Text(
+                  'Custom Color',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
                 const SizedBox(height: 16),
                 _buildColorPalettePicker(selectedColor, setDialogState, (c) {
                   selectedColor = c;
@@ -651,14 +791,18 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
           color: color,
           shape: BoxShape.circle,
           border: Border.all(
-            color: isSelected ? Theme.of(context).colorScheme.primary : Colors.grey.shade300,
+            color: isSelected
+                ? Theme.of(context).colorScheme.primary
+                : Colors.grey.shade300,
             width: isSelected ? 3 : 1,
           ),
         ),
         child: isSelected
             ? Icon(
                 Icons.check,
-                color: color.computeLuminance() > 0.5 ? Colors.black : Colors.white,
+                color: color.computeLuminance() > 0.5
+                    ? Colors.black
+                    : Colors.white,
                 size: 20,
               )
             : null,
@@ -677,10 +821,18 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
       children: [
         // Saturation/Value picker
         GestureDetector(
-          onPanStart: (details) =>
-              _updateColorPickerPalette(details.localPosition, hsvColor.hue, setDialogState, onColorSelected),
-          onPanUpdate: (details) =>
-              _updateColorPickerPalette(details.localPosition, hsvColor.hue, setDialogState, onColorSelected),
+          onPanStart: (details) => _updateColorPickerPalette(
+            details.localPosition,
+            hsvColor.hue,
+            setDialogState,
+            onColorSelected,
+          ),
+          onPanUpdate: (details) => _updateColorPickerPalette(
+            details.localPosition,
+            hsvColor.hue,
+            setDialogState,
+            onColorSelected,
+          ),
           child: Container(
             width: 280,
             height: 200,
@@ -721,10 +873,18 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
         const SizedBox(height: 16),
         // Hue slider
         GestureDetector(
-          onPanStart: (details) =>
-              _updateColorPickerHue(details.localPosition, hsvColor, setDialogState, onColorSelected),
-          onPanUpdate: (details) =>
-              _updateColorPickerHue(details.localPosition, hsvColor, setDialogState, onColorSelected),
+          onPanStart: (details) => _updateColorPickerHue(
+            details.localPosition,
+            hsvColor,
+            setDialogState,
+            onColorSelected,
+          ),
+          onPanUpdate: (details) => _updateColorPickerHue(
+            details.localPosition,
+            hsvColor,
+            setDialogState,
+            onColorSelected,
+          ),
           child: Container(
             width: 280,
             height: 30,
@@ -796,20 +956,23 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => _TemplateLibrarySheet(
-        templates: _templates,
-        favorites: _favorites,
-        onSelectTemplate: (template) {
-          _applyTemplate(template);
-          Navigator.pop(context);
-        },
-        onToggleFavorite: (template, isFavorite) {
-          if (isFavorite) {
-            _saveFavorite(template);
-          } else {
-            _removeFavorite(template);
-          }
-        },
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheetState) => _TemplateLibrarySheet(
+          templates: _templates,
+          favorites: _favorites,
+          onSelectTemplate: (template) {
+            _applyTemplate(template);
+            Navigator.pop(context);
+          },
+          onToggleFavorite: (template, isFavorite) async {
+            if (isFavorite) {
+              await _saveFavorite(template);
+            } else {
+              await _removeFavorite(template);
+            }
+            if (context.mounted) setSheetState(() {});
+          },
+        ),
       ),
     );
   }
@@ -843,6 +1006,7 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
           onShowBackgroundColorPicker: _showBackgroundColorPicker,
           onScrollDirectionChanged: (value) {
             setState(() => _scrollDirection = value);
+            _updateScrollAnimation();
             setDialogState(() {});
             _saveSettings();
           },
@@ -935,7 +1099,9 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
         gradientColors = null;
         break;
       case ColorMode.gradient:
-        primaryColor = _gradientColors.isNotEmpty ? _gradientColors.first : Colors.white;
+        primaryColor = _gradientColors.isNotEmpty
+            ? _gradientColors.first
+            : Colors.white;
         gradientColors = _gradientColors;
         break;
       case ColorMode.rainbow:
@@ -945,7 +1111,8 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
         // Create rainbow gradient
         gradientColors = List.generate(
           6,
-          (i) => HSVColor.fromAHSV(1.0, (hue + i * 60) % 360, 1.0, 1.0).toColor(),
+          (i) =>
+              HSVColor.fromAHSV(1.0, (hue + i * 60) % 360, 1.0, 1.0).toColor(),
         );
         break;
     }
@@ -1025,9 +1192,9 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
             color: _colorMode == ColorMode.solid ? _solidColor : null,
             foreground: _colorMode == ColorMode.gradient
                 ? (Paint()
-                  ..shader = LinearGradient(
-                    colors: _gradientColors,
-                  ).createShader(const Rect.fromLTWH(0, 0, 500, 100)))
+                    ..shader = LinearGradient(
+                      colors: _gradientColors,
+                    ).createShader(const Rect.fromLTWH(0, 0, 500, 100)))
                 : null,
           ),
           textAlign: TextAlign.center,
@@ -1046,10 +1213,7 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
 
     // Apply scrolling
     if (_isFullscreen) {
-      return SlideTransition(
-        position: _scrollAnimation,
-        child: textWidget,
-      );
+      return SlideTransition(position: _scrollAnimation, child: textWidget);
     }
 
     return textWidget;
@@ -1086,9 +1250,7 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
           child: Stack(
             children: [
               // Fullscreen scrolling text
-              Center(
-                child: _buildTextDisplay(),
-              ),
+              Center(child: _buildTextDisplay()),
 
               // Exit button (top-right)
               if (_showControls)
@@ -1096,7 +1258,11 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
                   top: MediaQuery.of(context).padding.top + 8,
                   right: 8,
                   child: IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white, size: 32),
+                    icon: const Icon(
+                      Icons.close,
+                      color: Colors.white,
+                      size: 32,
+                    ),
                     onPressed: _exitFullscreen,
                   ),
                 ),
@@ -1121,7 +1287,9 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
                           children: [
                             IconButton(
                               icon: Icon(
-                                _beatSyncEnabled ? Icons.pause : Icons.play_arrow,
+                                _beatSyncEnabled
+                                    ? Icons.pause
+                                    : Icons.play_arrow,
                                 color: Colors.white,
                                 size: 32,
                               ),
@@ -1143,7 +1311,11 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
                           const SizedBox(height: 8),
                           Row(
                             children: [
-                              const Icon(Icons.volume_down, color: Colors.white70, size: 20),
+                              const Icon(
+                                Icons.volume_down,
+                                color: Colors.white70,
+                                size: 20,
+                              ),
                               Expanded(
                                 child: Slider(
                                   value: _beatSensitivity,
@@ -1161,12 +1333,18 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
                                   },
                                 ),
                               ),
-                              const Icon(Icons.volume_up, color: Colors.white70, size: 20),
+                              const Icon(
+                                Icons.volume_up,
+                                color: Colors.white70,
+                                size: 20,
+                              ),
                             ],
                           ),
                           Text(
-                            _beatSensitivity < 0.33 ? 'Low Sensitivity'
-                                : _beatSensitivity < 0.67 ? 'Medium Sensitivity'
+                            _beatSensitivity < 0.33
+                                ? 'Low Sensitivity'
+                                : _beatSensitivity < 0.67
+                                ? 'Medium Sensitivity'
                                 : 'High Sensitivity',
                             style: const TextStyle(
                               color: Colors.white70,
@@ -1266,7 +1444,9 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    (_gradientColors.isNotEmpty ? _gradientColors.last : Colors.purple)
+                    (_gradientColors.isNotEmpty
+                            ? _gradientColors.last
+                            : Colors.purple)
                         .withValues(alpha: 0.12),
                     Colors.transparent,
                   ],
@@ -1376,7 +1556,9 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
             child: Container(
               height: 6,
               decoration: BoxDecoration(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(20),
+                ),
                 gradient: LinearGradient(
                   colors: [
                     _solidColor.withValues(alpha: 0.8),
@@ -1408,9 +1590,7 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
               decoration: BoxDecoration(
                 color: Colors.black.withValues(alpha: 0.6),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.2),
-                ),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -1447,9 +1627,7 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         color: Colors.white.withValues(alpha: 0.05),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.1),
-        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
       ),
       child: TextField(
         controller: _messageController,
@@ -1460,9 +1638,7 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
         ),
         decoration: InputDecoration(
           hintText: 'Type your message...',
-          hintStyle: TextStyle(
-            color: Colors.white.withValues(alpha: 0.4),
-          ),
+          hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
           prefixIcon: Icon(
             Icons.edit,
             color: Colors.white.withValues(alpha: 0.5),
@@ -1474,11 +1650,7 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
                 color: _solidColor.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(
-                Icons.check,
-                color: _solidColor,
-                size: 18,
-              ),
+              child: Icon(Icons.check, color: _solidColor, size: 18),
             ),
             onPressed: () {
               setState(() {
@@ -1488,7 +1660,10 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
             },
           ),
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 16,
+          ),
         ),
         onSubmitted: (value) {
           setState(() {
@@ -1541,7 +1716,10 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
                   },
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     decoration: BoxDecoration(
                       color: isSelected
                           ? _solidColor.withValues(alpha: 0.25)
@@ -1580,7 +1758,9 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
                             color: isSelected
                                 ? Colors.white
                                 : Colors.white.withValues(alpha: 0.5),
-                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.normal,
                           ),
                         ),
                       ],
@@ -1627,7 +1807,10 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
               GestureDetector(
                 onTap: _showTextColorPicker,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
@@ -1718,18 +1901,12 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.1),
-          ),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              color: Colors.white70,
-              size: 18,
-            ),
+            Icon(icon, color: Colors.white70, size: 18),
             const SizedBox(width: 8),
             Text(
               label,
@@ -1783,11 +1960,7 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                Icons.play_arrow_rounded,
-                color: textColor,
-                size: 32,
-              ),
+              Icon(Icons.play_arrow_rounded, color: textColor, size: 32),
               const SizedBox(width: 8),
               Text(
                 'GO LIVE',
@@ -1811,9 +1984,7 @@ class _ConcertModeScreenState extends State<ConcertModeScreen>
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.06),
-        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
       ),
       child: Row(
         children: [
@@ -1880,10 +2051,7 @@ class _TemplateLibrarySheet extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
-                Text(
-                  'Templates',
-                  style: theme.textTheme.headlineSmall,
-                ),
+                Text('Templates', style: theme.textTheme.headlineSmall),
                 const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.close),
@@ -1917,12 +2085,18 @@ class _TemplateLibrarySheet extends StatelessWidget {
                 itemCount: favorites.length,
                 itemBuilder: (context, index) {
                   final template = favorites[index];
-                  return _TemplateCard(
-                    template: template,
-                    isFavorite: true,
-                    onTap: () => onSelectTemplate(template),
-                    onToggleFavorite: (isFav) =>
-                        onToggleFavorite(template, isFav),
+                  return SizedBox(
+                    width: 240,
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: _TemplateCard(
+                        template: template,
+                        isFavorite: true,
+                        onTap: () => onSelectTemplate(template),
+                        onToggleFavorite: (isFav) =>
+                            onToggleFavorite(template, isFav),
+                      ),
+                    ),
                   );
                 },
               ),
@@ -1934,22 +2108,24 @@ class _TemplateLibrarySheet extends StatelessWidget {
           Expanded(
             child: GridView.builder(
               padding: const EdgeInsets.all(16),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 2.5,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: MediaQuery.sizeOf(context).width >= 800 ? 3 : 2,
+                mainAxisExtent: 92,
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
               ),
               itemCount: templates.length,
               itemBuilder: (context, index) {
                 final template = templates[index];
-                final isFavorite =
-                    favorites.any((f) => f.text == template.text);
+                final isFavorite = favorites.any(
+                  (f) => f.text == template.text,
+                );
                 return _TemplateCard(
                   template: template,
                   isFavorite: isFavorite,
                   onTap: () => onSelectTemplate(template),
-                  onToggleFavorite: (isFav) => onToggleFavorite(template, isFav),
+                  onToggleFavorite: (isFav) =>
+                      onToggleFavorite(template, isFav),
                 );
               },
             ),
@@ -1979,7 +2155,7 @@ class _TemplateCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
           gradient: template.gradientColors.length > 1
               ? LinearGradient(colors: template.gradientColors)
@@ -1996,43 +2172,33 @@ class _TemplateCard extends StatelessWidget {
             ),
           ],
         ),
-        child: Stack(
+        child: Row(
           children: [
-            Center(
+            Expanded(
               child: Text(
                 template.text,
                 style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  shadows: [
-                    Shadow(
-                      color: Colors.black,
-                      blurRadius: 4,
-                    ),
-                  ],
+                  fontSize: 14,
+                  shadows: [Shadow(color: Colors.black, blurRadius: 4)],
                 ),
                 textAlign: TextAlign.center,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            Positioned(
-              top: 0,
-              right: 0,
-              child: IconButton(
-                icon: Icon(
-                  isFavorite ? Icons.favorite : Icons.favorite_border,
-                  color: Colors.white,
-                  size: 20,
-                  shadows: const [
-                    Shadow(color: Colors.black, blurRadius: 4),
-                  ],
-                ),
-                onPressed: () => onToggleFavorite(!isFavorite),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
+            IconButton(
+              tooltip: isFavorite ? 'Remove favorite' : 'Add favorite',
+              icon: Icon(
+                isFavorite ? Icons.favorite : Icons.favorite_border,
+                color: Colors.white,
+                size: 20,
+                shadows: const [Shadow(color: Colors.black, blurRadius: 4)],
               ),
+              onPressed: () => onToggleFavorite(!isFavorite),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
             ),
           ],
         ),
@@ -2128,11 +2294,7 @@ class _CustomizationSheet extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [
-            Color(0xFF1A1A2E),
-            Color(0xFF0F0F1A),
-            Color(0xFF0A0A0F),
-          ],
+          colors: [Color(0xFF1A1A2E), Color(0xFF0F0F1A), Color(0xFF0A0A0F)],
         ),
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -2236,13 +2398,13 @@ class _CustomizationSheet extends StatelessWidget {
                       labelBuilder: (o) => o == ScreenOrientation.auto
                           ? 'Auto'
                           : o == ScreenOrientation.portrait
-                              ? 'Portrait'
-                              : 'Landscape',
+                          ? 'Portrait'
+                          : 'Landscape',
                       iconBuilder: (o) => o == ScreenOrientation.auto
                           ? Icons.screen_rotation_rounded
                           : o == ScreenOrientation.portrait
-                              ? Icons.stay_current_portrait_rounded
-                              : Icons.stay_current_landscape_rounded,
+                          ? Icons.stay_current_portrait_rounded
+                          : Icons.stay_current_landscape_rounded,
                       onSelected: onScreenOrientationChanged,
                     ),
                     const SizedBox(height: 20),
@@ -2297,7 +2459,8 @@ class _CustomizationSheet extends StatelessWidget {
                   _buildSectionHeader(
                     icon: _getStyleIcon(textStyle),
                     title: '${_getStyleName(textStyle).toUpperCase()} OPTIONS',
-                    subtitle: 'Fine-tune ${_getStyleName(textStyle)} appearance',
+                    subtitle:
+                        'Fine-tune ${_getStyleName(textStyle)} appearance',
                   ),
                   const SizedBox(height: 12),
                   _buildStyleOptionsCard(),
@@ -2347,8 +2510,8 @@ class _CustomizationSheet extends StatelessWidget {
                                     mode == ColorMode.solid
                                         ? Icons.circle
                                         : mode == ColorMode.gradient
-                                            ? Icons.gradient_rounded
-                                            : Icons.auto_awesome_rounded,
+                                        ? Icons.gradient_rounded
+                                        : Icons.auto_awesome_rounded,
                                     color: isSelected
                                         ? _accentColor
                                         : Colors.white54,
@@ -2359,8 +2522,8 @@ class _CustomizationSheet extends StatelessWidget {
                                     mode == ColorMode.solid
                                         ? 'Solid'
                                         : mode == ColorMode.gradient
-                                            ? 'Gradient'
-                                            : 'Rainbow',
+                                        ? 'Gradient'
+                                        : 'Rainbow',
                                     style: TextStyle(
                                       color: isSelected
                                           ? Colors.white
@@ -2465,8 +2628,8 @@ class _CustomizationSheet extends StatelessWidget {
                                     mode == EffectMode.none
                                         ? Icons.block_rounded
                                         : mode == EffectMode.pulse
-                                            ? Icons.favorite_rounded
-                                            : Icons.auto_awesome,
+                                        ? Icons.favorite_rounded
+                                        : Icons.auto_awesome,
                                     color: isSelected
                                         ? _accentColor
                                         : Colors.white54,
@@ -2477,8 +2640,8 @@ class _CustomizationSheet extends StatelessWidget {
                                     mode == EffectMode.none
                                         ? 'None'
                                         : mode == EffectMode.pulse
-                                            ? 'Pulse'
-                                            : 'Sparkle',
+                                        ? 'Pulse'
+                                        : 'Sparkle',
                                     style: TextStyle(
                                       color: isSelected
                                           ? Colors.white
@@ -2531,8 +2694,8 @@ class _CustomizationSheet extends StatelessWidget {
                         valueLabel: beatSensitivity < 0.33
                             ? 'Low'
                             : beatSensitivity < 0.67
-                                ? 'Medium'
-                                : 'High',
+                            ? 'Medium'
+                            : 'High',
                         onChanged: onBeatSensitivityChanged,
                         helperText: 'Higher = detects quieter beats',
                       ),
@@ -2611,9 +2774,7 @@ class _CustomizationSheet extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.08),
-        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2648,9 +2809,7 @@ class _CustomizationSheet extends StatelessWidget {
             onTap: () => onSelected(option),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              margin: EdgeInsets.only(
-                right: option != options.last ? 8 : 0,
-              ),
+              margin: EdgeInsets.only(right: option != options.last ? 8 : 0),
               padding: const EdgeInsets.symmetric(vertical: 10),
               decoration: BoxDecoration(
                 color: isSelected
@@ -2676,8 +2835,9 @@ class _CustomizationSheet extends StatelessWidget {
                     style: TextStyle(
                       color: isSelected ? Colors.white : Colors.white54,
                       fontSize: 10,
-                      fontWeight:
-                          isSelected ? FontWeight.w600 : FontWeight.normal,
+                      fontWeight: isSelected
+                          ? FontWeight.w600
+                          : FontWeight.normal,
                     ),
                   ),
                 ],
@@ -2833,9 +2993,7 @@ class _CustomizationSheet extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.1),
-          ),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
         ),
         child: Row(
           children: [
@@ -2878,11 +3036,7 @@ class _CustomizationSheet extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    Icons.colorize_rounded,
-                    color: _accentColor,
-                    size: 14,
-                  ),
+                  Icon(Icons.colorize_rounded, color: _accentColor, size: 14),
                   const SizedBox(width: 6),
                   Text(
                     'Pick',
@@ -2979,8 +3133,8 @@ class _CustomizationSheet extends StatelessWidget {
           iconBuilder: (s) => s == LEDDotShape.circle
               ? Icons.circle
               : s == LEDDotShape.square
-                  ? Icons.square
-                  : Icons.rounded_corner,
+              ? Icons.square
+              : Icons.rounded_corner,
           onSelected: (shape) =>
               onLedConfigChanged(ledConfig.copyWith(dotShape: shape)),
         ),
@@ -3066,7 +3220,8 @@ class _CustomizationSheet extends StatelessWidget {
           labelBuilder: (s) => s.displayName,
           iconBuilder: (_) => Icons.segment_rounded,
           onSelected: (style) => onSevenSegmentConfigChanged(
-              sevenSegmentConfig.copyWith(style: style)),
+            sevenSegmentConfig.copyWith(style: style),
+          ),
         ),
         const SizedBox(height: 16),
 
@@ -3079,7 +3234,8 @@ class _CustomizationSheet extends StatelessWidget {
           labelBuilder: (t) => t.displayName,
           iconBuilder: (_) => Icons.line_weight_rounded,
           onSelected: (thickness) => onSevenSegmentConfigChanged(
-              sevenSegmentConfig.copyWith(thickness: thickness)),
+            sevenSegmentConfig.copyWith(thickness: thickness),
+          ),
         ),
         const SizedBox(height: 16),
 
@@ -3090,9 +3246,11 @@ class _CustomizationSheet extends StatelessWidget {
           min: 0.0,
           max: 0.3,
           divisions: 6,
-          valueLabel: '${(sevenSegmentConfig.offSegmentOpacity * 100).toInt()}%',
+          valueLabel:
+              '${(sevenSegmentConfig.offSegmentOpacity * 100).toInt()}%',
           onChanged: (v) => onSevenSegmentConfigChanged(
-              sevenSegmentConfig.copyWith(offSegmentOpacity: v)),
+            sevenSegmentConfig.copyWith(offSegmentOpacity: v),
+          ),
         ),
       ],
     );
@@ -3188,7 +3346,8 @@ class _CustomizationSheet extends StatelessWidget {
           labelBuilder: (s) => s.displayName,
           iconBuilder: (_) => Icons.space_bar_rounded,
           onSelected: (spacing) => onStadiumConfigChanged(
-              stadiumConfig.copyWith(bulbSpacing: spacing)),
+            stadiumConfig.copyWith(bulbSpacing: spacing),
+          ),
         ),
         const SizedBox(height: 16),
 
@@ -3234,7 +3393,8 @@ class _CustomizationSheet extends StatelessWidget {
             divisions: 8,
             valueLabel: '${(stadiumConfig.glowIntensity * 100).toInt()}%',
             onChanged: (v) => onStadiumConfigChanged(
-                stadiumConfig.copyWith(glowIntensity: v)),
+              stadiumConfig.copyWith(glowIntensity: v),
+            ),
           ),
         ],
         const SizedBox(height: 12),
@@ -3277,9 +3437,10 @@ class _PulseEffectState extends State<_PulseEffect>
       duration: const Duration(milliseconds: 1000),
       vsync: this,
     )..repeat(reverse: true);
-    _animation = Tween<double>(begin: 0.9, end: 1.1).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _animation = Tween<double>(
+      begin: 0.9,
+      end: 1.1,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
@@ -3290,10 +3451,7 @@ class _PulseEffectState extends State<_PulseEffect>
 
   @override
   Widget build(BuildContext context) {
-    return ScaleTransition(
-      scale: _animation,
-      child: widget.child,
-    );
+    return ScaleTransition(scale: _animation, child: widget.child);
   }
 }
 
@@ -3365,10 +3523,10 @@ class MessageTemplate {
   MessageTemplate(this.text, this.solidColor, this.gradientColors);
 
   Map<String, dynamic> toJson() => {
-        'text': text,
-        'solidColor': solidColor.toARGB32(),
-        'gradientColors': gradientColors.map((c) => c.toARGB32()).toList(),
-      };
+    'text': text,
+    'solidColor': solidColor.toARGB32(),
+    'gradientColors': gradientColors.map((c) => c.toARGB32()).toList(),
+  };
 
   factory MessageTemplate.fromJson(Map<String, dynamic> json) {
     final solidColorValue = json['solidColor'] as int;
@@ -3376,17 +3534,8 @@ class MessageTemplate {
 
     return MessageTemplate(
       json['text'] as String,
-      Color((solidColorValue & 0xFF000000) |
-            ((solidColorValue >> 16) & 0xFF) |
-            (solidColorValue & 0x0000FF00) |
-            ((solidColorValue & 0xFF) << 16)),
-      gradientColorValues.map((c) {
-        final value = c as int;
-        return Color((value & 0xFF000000) |
-                    ((value >> 16) & 0xFF) |
-                    (value & 0x0000FF00) |
-                    ((value & 0xFF) << 16));
-      }).toList(),
+      Color(solidColorValue),
+      gradientColorValues.map((c) => Color(c as int)).toList(),
     );
   }
 }

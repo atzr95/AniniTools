@@ -1,8 +1,8 @@
 import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
-// Import all sensor services
 import '../services/sensors/battery_service.dart';
 import '../services/sensors/magnetometer_service.dart';
 import '../services/sensors/gyroscope_service.dart';
@@ -15,100 +15,52 @@ import '../services/sensors/linear_acceleration_service.dart';
 import '../services/sensors/location_service.dart';
 import '../utils/capped_list.dart';
 
-/// ViewModel for sensor screen
-/// Manages all sensor data streams and card expansion states
+/// Owns a screen's sensor listeners. Availability means data arrived, not just permission.
 class SensorViewModel extends ChangeNotifier {
-  // Services
-  final BatteryService _batteryService = BatteryService();
-  final MagnetometerService _magnetometerService = MagnetometerService();
-  final GyroscopeService _gyroscopeService = GyroscopeService();
-  final ProximityService _proximityService = ProximityService();
-  final PressureService _pressureService = PressureService();
-  final SoundService _soundService = SoundService();
-  final OrientationService _orientationService = OrientationService();
-  final AccelerometerService _accelerometerService = AccelerometerService();
-  final LinearAccelerationService _linearAccelerationService =
-      LinearAccelerationService();
-  final LocationService _locationService = LocationService();
+  final _batteryService = BatteryService();
+  final _magnetometerService = MagnetometerService();
+  final _gyroscopeService = GyroscopeService();
+  final _proximityService = ProximityService();
+  final _pressureService = PressureService();
+  final _soundService = SoundService();
+  final _orientationService = OrientationService();
+  final _accelerometerService = AccelerometerService();
+  final _linearAccelerationService = LinearAccelerationService();
+  final _locationService = LocationService();
 
-  // Subscriptions
-  StreamSubscription? _batterySubscription;
-  StreamSubscription? _magnetometerSubscription;
-  StreamSubscription? _gyroscopeSubscription;
-  StreamSubscription? _proximitySubscription;
-  StreamSubscription? _pressureSubscription;
-  StreamSubscription? _decibelSubscription;
-  StreamSubscription? _pitchSubscription;
-  StreamSubscription? _orientationSubscription;
-  StreamSubscription? _accelerometerSubscription;
-  StreamSubscription? _linearAccelerationSubscription;
-  StreamSubscription? _locationSubscription;
+  final List<StreamSubscription<dynamic>> _subscriptions = [];
+  StreamSubscription? _decibelSubscription,
+      _pitchSubscription,
+      _locationSubscription;
+  Timer? _uiUpdateTimer, _gpsStaleTimer;
+  bool _hasDataToUpdate = false, _disposed = false;
+  bool _requestingSound = false, _requestingLocation = false;
 
-  // Battery data
   int _batteryLevel = 0;
   String _batteryStatus = 'Unknown';
   bool _isCharging = false;
-
-  // Magnetometer
-  double _magneticField = 0.0;
-
-  // Gyroscope
-  double _gyroX = 0.0, _gyroY = 0.0, _gyroZ = 0.0;
-  double _gyroMagnitude = 0.0;
-
-  // Proximity
+  double _magneticField = 0;
+  double _gyroX = 0, _gyroY = 0, _gyroZ = 0, _gyroMagnitude = 0;
   bool _isNear = false;
-
-  // Pressure
-  double _pressure = 0.0;
-
-  // Sound
-  double _decibel = 0.0;
-  double _pitchFrequency = 0.0;
+  double _pressure = 0;
+  double _decibel = -160, _pitchFrequency = 0;
   String _pitchNote = '--';
-
-  // Orientation
-  double _pitch = 0.0, _roll = 0.0;
-
-  // Accelerometer (includes gravity)
-  double _accelX = 0.0, _accelY = 0.0, _accelZ = 0.0;
-  double _accelMagnitude = 0.0;
-
-  // Linear Acceleration (gravity removed - for movement detection)
-  double _linearAccelY = 0.0;
-
-  // GPS/Location
-  double _latitude = 0.0, _longitude = 0.0, _altitude = 0.0;
-  double _gpsSpeed = 0.0; // m/s from GPS
-  bool _hasLocationPermission = false;
-  bool _isLoadingGPS = false;
-  String _gpsStatus = 'Waiting...';
-
-  // Sound permission state — distinguishes "hardware missing" from "user denied mic"
+  double _pitch = 0, _roll = 0;
+  double _accelX = 0, _accelY = 0, _accelZ = 0, _accelMagnitude = 0;
+  double _linearAccelY = 0, _linearAccelMagnitude = 0;
+  double _linearAccelPeakMagnitude = 0, _linearAccelYMax = 0;
+  double _linearAccelYMin = 0;
+  double _latitude = 0, _longitude = 0, _altitude = 0, _gpsSpeed = 0;
+  bool _hasLocationPermission = false,
+      _isLoadingGPS = false,
+      _gpsSpeedFresh = false;
+  String _gpsStatus = 'Location access needed';
   bool _soundPermissionDenied = false;
-  bool get soundPermissionDenied => _soundPermissionDenied;
+  String _soundStatus = 'Enable microphone to read sound levels and pitch';
 
-  // Set in dispose(). The async start paths below await a permission prompt or
-  // a GPS fix before subscribing; without this they would subscribe after
-  // dispose() already ran and pin the recorder / position stream on forever.
-  bool _disposed = false;
-
-  // Card expansion states
   final Map<String, bool> _expandedCards = {};
-
-  // Sensor availability tracking
-  final Map<String, bool> _sensorAvailability = {
-    'magnetic': false,
-    'gyroscope': false,
-    'proximity': false,
-    'pressure': false,
-    'sound': false,
-    'orientation': false,
-    'accelerometer': false,
-    'gps': false,
-  };
-
-  // Graph data buffers (for charts)
+  final Map<String, bool> _sensorAvailability = {};
+  final Map<String, int> _sampleVersions = {};
   final Map<String, List<double>> _graphData = {
     'magnetic': [],
     'decibel': [],
@@ -116,382 +68,326 @@ class SensorViewModel extends ChangeNotifier {
     'gyroscope': [],
     'accelerometer': [],
   };
-  static const int _maxGraphPoints = 100;
 
-  // UI update throttling
-  Timer? _uiUpdateTimer;
-  bool _hasDataToUpdate = false;
-  static const _uiUpdateInterval = Duration(
-    milliseconds: 200,
-  ); // 5 FPS is sufficient for dashboard readings and charts.
-
-  // Getters for battery
   int get batteryLevel => _batteryLevel;
   String get batteryStatus => _batteryStatus;
   bool get isCharging => _isCharging;
-
-  // Getters for magnetic
   double get magneticField => _magneticField;
   List<double> get magneticGraphData => _graphData['magnetic']!;
-
-  // Getters for gyroscope
   double get gyroX => _gyroX;
   double get gyroY => _gyroY;
   double get gyroZ => _gyroZ;
   double get gyroMagnitude => _gyroMagnitude;
   List<double> get gyroscopeGraphData => _graphData['gyroscope']!;
-
-  // Getters for proximity
   bool get isNear => _isNear;
-
-  // Getters for pressure
   double get pressure => _pressure;
-
-  // Getters for sound
   double get decibel => _decibel;
   double get pitchFrequency => _pitchFrequency;
   String get pitchNote => _pitchNote;
   List<double> get decibelGraphData => _graphData['decibel']!;
   List<double> get pitchGraphData => _graphData['pitch']!;
-
-  // Getters for orientation
   double get pitch => _pitch;
   double get roll => _roll;
-
-  // Getters for accelerometer
   double get accelX => _accelX;
   double get accelY => _accelY;
   double get accelZ => _accelZ;
   double get accelMagnitude => _accelMagnitude;
   List<double> get accelerometerGraphData => _graphData['accelerometer']!;
-
-  // Getters for linear acceleration (gravity removed)
   double get linearAccelY => _linearAccelY;
+  double get linearAccelMagnitude => _linearAccelMagnitude;
 
-  // Getters for GPS
+  /// Extremes since the last UI update. Sensors fire faster than the 200 ms
+  /// update, so tools read peaks from these instead of the latest value.
+  double get linearAccelPeakMagnitude => _linearAccelPeakMagnitude;
+  double get linearAccelYMax => _linearAccelYMax;
+  double get linearAccelYMin => _linearAccelYMin;
   double get latitude => _latitude;
   double get longitude => _longitude;
   double get altitude => _altitude;
-  double get gpsSpeed => _gpsSpeed; // m/s
-  double get gpsSpeedKmh => _gpsSpeed * 3.6; // km/h
+  double get gpsSpeed => _gpsSpeed;
+  double get gpsSpeedKmh => _gpsSpeed * 3.6;
+  bool get gpsSpeedFresh => _gpsSpeedFresh;
   bool get hasLocationPermission => _hasLocationPermission;
   bool get isLoadingGPS => _isLoadingGPS;
   String get gpsStatus => _gpsStatus;
+  bool get soundPermissionDenied => _soundPermissionDenied;
+  String get soundStatus => _soundStatus;
+  bool get isRequestingSound => _requestingSound;
 
-  // Card expansion states
-  bool isCardExpanded(String sensorName) => _expandedCards[sensorName] ?? false;
+  bool isCardExpanded(String name) => _expandedCards[name] ?? false;
+  bool isSensorAvailable(String name) => _sensorAvailability[name] ?? false;
 
-  // Sensor availability
-  bool isSensorAvailable(String sensorName) =>
-      _sensorAvailability[sensorName] ?? false;
+  /// A new version is a new measurement; screen redraws never advance it.
+  int sampleVersion(String name) => _sampleVersions[name] ?? 0;
 
-  /// Initialize all available sensors.
-  /// Subscribing to a sensor service starts it: every one runs its platform
-  /// subscription only while it has listeners. Sound and location still wait on
-  /// a permission flow before subscribing, but neither is stopped by hand.
-  Future<void> initialize() async {
-    // Start UI update timer
-    _startUIUpdateTimer();
-
-    _startBatterySensor();
-    _startMagnetometer();
-    _startGyroscope();
-    _startProximitySensor();
-    _startPressureSensor();
-    _startOrientationSensor();
-    _startAccelerometer();
-    _startLinearAcceleration();
-    await _requestLocationPermission();
-    await startSoundMonitoring(); // Start sound monitoring automatically
-  }
-
-  /// Start UI update timer to throttle notifyListeners calls
-  void _startUIUpdateTimer() {
-    _uiUpdateTimer = Timer.periodic(_uiUpdateInterval, (_) {
-      if (_hasDataToUpdate) {
+  /// The dashboard starts only unprotected sensors. Each tool names what it uses.
+  Future<void> initialize({
+    Set<String> sensors = const {
+      'battery',
+      'magnetic',
+      'gyroscope',
+      'proximity',
+      'pressure',
+      'orientation',
+      'accelerometer',
+      'linearAcceleration',
+    },
+  }) async {
+    _uiUpdateTimer ??= Timer.periodic(const Duration(milliseconds: 200), (_) {
+      if (_hasDataToUpdate && !_disposed) {
         _hasDataToUpdate = false;
         notifyListeners();
+        // Listeners have read this window's extremes; start the next one.
+        _linearAccelPeakMagnitude = _linearAccelMagnitude;
+        _linearAccelYMax = _linearAccelYMin = _linearAccelY;
       }
     });
+    if (sensors.contains('battery')) {
+      _subscriptions.add(
+        _batteryService.stream.listen((info) {
+          _batteryLevel = info.level;
+          _batteryStatus = info.state;
+          _isCharging = info.isCharging;
+          _received('battery');
+        }, onError: (Object error) => _unavailable('battery', error)),
+      );
+    }
+    if (sensors.contains('magnetic')) {
+      _subscriptions.add(
+        _magnetometerService.stream.listen((field) {
+          _magneticField = field;
+          _addGraphData('magnetic', field);
+          _received('magnetic');
+        }, onError: (Object error) => _unavailable('magnetic', error)),
+      );
+    }
+    if (sensors.contains('gyroscope')) {
+      _subscriptions.add(
+        _gyroscopeService.stream.listen((data) {
+          _gyroX = data.x;
+          _gyroY = data.y;
+          _gyroZ = data.z;
+          _gyroMagnitude = data.magnitude;
+          _addGraphData('gyroscope', data.magnitude);
+          _received('gyroscope');
+        }, onError: (Object error) => _unavailable('gyroscope', error)),
+      );
+    }
+    if (sensors.contains('proximity')) {
+      _subscriptions.add(
+        _proximityService.stream.listen((near) {
+          _isNear = near;
+          _received('proximity');
+        }, onError: (Object error) => _unavailable('proximity', error)),
+      );
+    }
+    if (sensors.contains('pressure')) {
+      _subscriptions.add(
+        _pressureService.stream.listen((pressure) {
+          _pressure = pressure;
+          _received('pressure');
+        }, onError: (Object error) => _unavailable('pressure', error)),
+      );
+    }
+    if (sensors.contains('orientation')) {
+      _subscriptions.add(
+        _orientationService.stream.listen((data) {
+          _pitch = data.pitch;
+          _roll = data.roll;
+          _received('orientation');
+        }, onError: (Object error) => _unavailable('orientation', error)),
+      );
+    }
+    if (sensors.contains('accelerometer')) {
+      _subscriptions.add(
+        _accelerometerService.stream.listen((data) {
+          _accelX = data.x;
+          _accelY = data.y;
+          _accelZ = data.z;
+          _accelMagnitude = data.magnitude;
+          _addGraphData('accelerometer', data.magnitude);
+          _received('accelerometer');
+        }, onError: (Object error) => _unavailable('accelerometer', error)),
+      );
+    }
+    if (sensors.contains('linearAcceleration')) {
+      _subscriptions.add(
+        _linearAccelerationService.stream.listen(
+          (data) {
+            _linearAccelY = data.y;
+            _linearAccelMagnitude = data.magnitude;
+            if (data.magnitude > _linearAccelPeakMagnitude) {
+              _linearAccelPeakMagnitude = data.magnitude;
+            }
+            if (data.y > _linearAccelYMax) _linearAccelYMax = data.y;
+            if (data.y < _linearAccelYMin) _linearAccelYMin = data.y;
+            _received('linearAcceleration');
+          },
+          onError: (Object error) => _unavailable('linearAcceleration', error),
+        ),
+      );
+    }
+    await Future.wait([
+      if (sensors.contains('gps')) retryLocationPermission(),
+      if (sensors.contains('sound')) startSoundMonitoring(),
+    ]);
   }
 
-  /// Schedule a UI update (throttled)
-  void _scheduleUIUpdate() {
+  void _received(String name) {
+    if (name == 'sound') _requestingSound = false;
+    _sensorAvailability[name] = true;
+    _sampleVersions[name] = sampleVersion(name) + 1;
     _hasDataToUpdate = true;
   }
 
-  /// Battery sensor
-  void _startBatterySensor() {
-    _batterySubscription = _batteryService.stream.listen((info) {
-      _batteryLevel = info.level;
-      _batteryStatus = info.state;
-      _isCharging = info.isCharging;
-      _scheduleUIUpdate();
-    });
-  }
-
-  /// Magnetometer
-  void _startMagnetometer() {
-    try {
-      _magnetometerSubscription = _magnetometerService.stream.listen((field) {
-        _magneticField = field;
-        _addGraphData('magnetic', field);
-        _scheduleUIUpdate();
-      });
-      _sensorAvailability['magnetic'] = true;
-    } catch (e) {
-      _sensorAvailability['magnetic'] = false;
+  void _unavailable(String name, Object error) {
+    _sensorAvailability[name] = false;
+    if (name == 'sound') {
+      _requestingSound = false;
+      _soundStatus = 'Microphone unavailable. Try again or open settings.';
     }
+    _hasDataToUpdate = true;
+    debugPrint('$name unavailable: $error');
   }
 
-  /// Gyroscope
-  void _startGyroscope() {
+  Future<void> retryLocationPermission() async {
+    if (_requestingLocation || _disposed) return;
+    _requestingLocation = true;
+    _isLoadingGPS = true;
+    _gpsStatus = 'Acquiring GPS signal...';
+    _sensorAvailability['gps'] = false;
+    _gpsSpeedFresh = false;
+    _gpsStaleTimer?.cancel();
+    _hasDataToUpdate = true;
     try {
-      _gyroscopeSubscription = _gyroscopeService.stream.listen((data) {
-        _gyroX = data.x;
-        _gyroY = data.y;
-        _gyroZ = data.z;
-        _gyroMagnitude = data.magnitude;
-        _addGraphData('gyroscope', data.magnitude);
-        _scheduleUIUpdate();
-      });
-      _sensorAvailability['gyroscope'] = true;
-    } catch (e) {
-      _sensorAvailability['gyroscope'] = false;
-    }
-  }
-
-  /// Proximity sensor
-  void _startProximitySensor() {
-    try {
-      _proximitySubscription = _proximityService.stream.listen((isNear) {
-        _isNear = isNear;
-        _scheduleUIUpdate();
-      });
-      _sensorAvailability['proximity'] = true;
-    } catch (e) {
-      _sensorAvailability['proximity'] = false;
-    }
-  }
-
-  /// Pressure sensor
-  void _startPressureSensor() {
-    try {
-      _pressureSubscription = _pressureService.stream.listen(
-        (hPa) {
-          _pressure = hPa;
-          _sensorAvailability['pressure'] =
-              true; // Mark available on first data
-          _scheduleUIUpdate();
-        },
-        onError: (error) {
-          _sensorAvailability['pressure'] = false; // Mark unavailable on error
-          _scheduleUIUpdate();
-        },
-      );
-    } catch (e) {
-      _sensorAvailability['pressure'] = false;
-    }
-  }
-
-  /// Orientation sensor
-  void _startOrientationSensor() {
-    try {
-      _orientationSubscription = _orientationService.stream.listen((data) {
-        _pitch = data.pitch;
-        _roll = data.roll;
-        _scheduleUIUpdate();
-      });
-      _sensorAvailability['orientation'] = true;
-    } catch (e) {
-      _sensorAvailability['orientation'] = false;
-    }
-  }
-
-  /// Accelerometer (includes gravity)
-  void _startAccelerometer() {
-    try {
-      _accelerometerSubscription = _accelerometerService.stream.listen((data) {
-        _accelX = data.x;
-        _accelY = data.y;
-        _accelZ = data.z;
-        _accelMagnitude = data.magnitude;
-        _addGraphData('accelerometer', data.magnitude);
-        _scheduleUIUpdate();
-      });
-      _sensorAvailability['accelerometer'] = true;
-    } catch (e) {
-      _sensorAvailability['accelerometer'] = false;
-    }
-  }
-
-  /// Linear Acceleration (gravity removed - for movement detection)
-  void _startLinearAcceleration() {
-    try {
-      _linearAccelerationSubscription = _linearAccelerationService.stream
-          .listen((data) {
-            _linearAccelY = data.y;
-            _scheduleUIUpdate();
-          });
-    } catch (e) {
-      // Linear acceleration not available
-    }
-  }
-
-  /// Request location permission
-  Future<void> _requestLocationPermission() async {
-    try {
+      await _locationSubscription?.cancel();
+      _locationSubscription = null;
       final permission = await _locationService.requestPermission();
+      if (_disposed) return;
       _hasLocationPermission =
           permission == LocationPermission.always ||
           permission == LocationPermission.whileInUse;
-      if (_hasLocationPermission) {
-        await _startGPSService();
-        _sensorAvailability['gps'] = true;
-      }
-    } catch (e) {
-      _sensorAvailability['gps'] = false;
-    }
-    _scheduleUIUpdate();
-  }
-
-  /// Start GPS service
-  Future<void> _startGPSService() async {
-    _isLoadingGPS = true;
-    _gpsStatus = 'Acquiring GPS signal...';
-    _scheduleUIUpdate();
-
-    try {
-      // Check if location services are enabled
-      final servicesEnabled = await _locationService.isLocationServiceEnabled();
-      if (!servicesEnabled) {
-        _isLoadingGPS = false;
-        _gpsStatus = 'Location services OFF';
-        _scheduleUIUpdate();
+      if (!_hasLocationPermission) {
+        _gpsStatus = 'Location access needed';
         return;
       }
-
-      // Get initial position
-      final position = await _locationService.getCurrentPosition();
-      if (position != null) {
-        _latitude = position.latitude;
-        _longitude = position.longitude;
-        _altitude = position.altitude;
-        _gpsSpeed = position.speed >= 0 ? position.speed : 0.0;
-        _isLoadingGPS = false;
-        _gpsStatus = 'GPS Ready';
-        _scheduleUIUpdate();
+      if (!await _locationService.isLocationServiceEnabled()) {
+        _gpsStatus = 'Location services OFF';
+        return;
       }
-
-      // Subscribing starts the position stream.
       if (_disposed) return;
-      _locationSubscription = _locationService.stream.listen((position) {
-        _latitude = position.latitude;
-        _longitude = position.longitude;
-        _altitude = position.altitude;
-        _gpsSpeed = position.speed >= 0 ? position.speed : 0.0;
-        _isLoadingGPS = false;
-        _gpsStatus = position.accuracy < 10 ? 'Excellent GPS' : 'Good GPS';
-        _scheduleUIUpdate();
-      });
-    } catch (e) {
+      _locationSubscription = _locationService.stream.listen(
+        _onPosition,
+        onError: (Object error) {
+          _unavailable('gps', error);
+          _gpsSpeedFresh = false;
+          _isLoadingGPS = false;
+          _gpsStatus = 'Location unavailable. Try again.';
+        },
+      );
+      _locationService.restart();
+      // Subscribe first so a stream fix is usable even if the one-shot request fails.
+      final version = sampleVersion('gps');
+      final position = await _locationService.getCurrentPosition();
+      if (_disposed) return;
+      if (sampleVersion('gps') == version) {
+        if (position != null) {
+          _onPosition(position);
+        } else {
+          _gpsStatus = 'No GPS signal. Try again.';
+        }
+      }
+    } catch (error) {
+      _unavailable('gps', error);
+      _gpsStatus = 'Location unavailable. Try again.';
+    } finally {
+      _requestingLocation = false;
       _isLoadingGPS = false;
-      _gpsStatus = 'GPS Error';
-      _scheduleUIUpdate();
+      _hasDataToUpdate = true;
     }
   }
 
-  /// Start sound monitoring (requires permission)
+  void _onPosition(Position position) {
+    if (_disposed) return;
+    _latitude = position.latitude;
+    _longitude = position.longitude;
+    _altitude = position.altitude;
+    _gpsSpeed = position.speed >= 0 ? position.speed : 0;
+    _gpsSpeedFresh = position.speed >= 0;
+    _isLoadingGPS = false;
+    _gpsStatus = position.accuracy < 10 ? 'Excellent GPS' : 'GPS Ready';
+    _received('gps');
+    _gpsStaleTimer?.cancel();
+    _gpsStaleTimer = Timer(const Duration(seconds: 5), () {
+      _gpsSpeedFresh = false;
+      _gpsStatus = 'Location reading is old. Try again.';
+      _hasDataToUpdate = true;
+    });
+  }
+
   Future<void> startSoundMonitoring() async {
+    if (_requestingSound || _disposed) return;
+    _requestingSound = true;
+    _soundStatus = 'Starting microphone...';
+    _hasDataToUpdate = true;
     try {
       final granted = await _soundService.requestPermission();
       if (_disposed) return;
+      _soundPermissionDenied = !granted;
       if (!granted) {
+        _soundStatus =
+            'Microphone access needed. Allow access in app settings.';
         _sensorAvailability['sound'] = false;
-        _soundPermissionDenied = true;
-        _scheduleUIUpdate();
         return;
       }
-
-      // Subscribing starts the recorder; the permission gate above is why the
-      // microphone can't just be left to the first listener unconditionally.
-      // Drop any earlier pair first, with no await in between: two overlapping
-      // calls (a double tap on "Enable microphone") would otherwise leak one,
-      // and a leaked listener keeps the microphone on for good.
       _decibelSubscription?.cancel();
       _pitchSubscription?.cancel();
+      _sensorAvailability['sound'] = false;
       _decibelSubscription = _soundService.decibelStream.listen((db) {
         _decibel = db;
+        _soundStatus = 'Microphone ready';
         _addGraphData('decibel', db);
-        _scheduleUIUpdate();
-      });
-
+        _received('sound');
+      }, onError: (Object error) => _unavailable('sound', error));
       _pitchSubscription = _soundService.pitchStream.listen((data) {
         _pitchFrequency = data.frequency;
         _pitchNote = data.noteName;
         _addGraphData('pitch', data.frequency);
-        _scheduleUIUpdate();
-      });
-      _sensorAvailability['sound'] = true;
-      _soundPermissionDenied = false;
-      _scheduleUIUpdate();
-    } catch (e) {
-      _sensorAvailability['sound'] = false;
-      debugPrint('Sound monitoring failed to start: $e');
+        _hasDataToUpdate = true;
+      }, onError: (Object error) => _unavailable('sound', error));
+      await _soundService.startMonitoring();
+    } catch (error) {
+      _unavailable('sound', error);
+    } finally {
+      if (_disposed || _soundPermissionDenied) _requestingSound = false;
+      _hasDataToUpdate = true;
     }
   }
 
-  /// Retry sound monitoring after a permission denial.
-  /// Called from the UI when the user taps "Enable microphone".
-  /// startSoundMonitoring() drops any leftover subscriptions itself.
   Future<void> retrySoundMonitoring() => startSoundMonitoring();
+  Future<bool> openAppSettings() => _locationService.openAppSettings();
+  Future<bool> openLocationSettings() =>
+      _locationService.openLocationSettings();
 
-  /// Toggle card expansion state
-  void toggleCard(String sensorName) {
-    _expandedCards[sensorName] = !(_expandedCards[sensorName] ?? false);
+  void toggleCard(String name) {
+    _expandedCards[name] = !isCardExpanded(name);
     notifyListeners();
   }
 
-  /// Add data point to graph buffer
-  void _addGraphData(String sensorName, double value) =>
-      _graphData[sensorName]?.pushCapped(value, _maxGraphPoints);
-
-  /// Open location settings
-  Future<void> openLocationSettings() async {
-    await _locationService.openLocationSettings();
-  }
-
-  /// Retry GPS setup — re-requests permission and restarts the location
-  /// stream. Called from the UI after the user taps "Enable Location".
-  Future<void> retryLocationPermission() async {
-    await _locationSubscription?.cancel();
-    _locationSubscription = null;
-    await _requestLocationPermission();
-  }
+  void _addGraphData(String name, double value) =>
+      _graphData[name]?.pushCapped(value, 100);
 
   @override
   void dispose() {
     _disposed = true;
-
-    // Cancel UI update timer
     _uiUpdateTimer?.cancel();
-
-    // Cancelling a subscription IS stopping the sensor: each service starts its
-    // platform subscription on its first listener and drops it on its last, so
-    // tearing this view model down never freezes another one that is still
-    // mounted (e.g. the Sensors screen under a pushed tool route).
-    _batterySubscription?.cancel();
-    _magnetometerSubscription?.cancel();
-    _gyroscopeSubscription?.cancel();
-    _proximitySubscription?.cancel();
-    _pressureSubscription?.cancel();
+    _gpsStaleTimer?.cancel();
+    for (final subscription in _subscriptions) {
+      subscription.cancel();
+    }
     _decibelSubscription?.cancel();
     _pitchSubscription?.cancel();
-    _orientationSubscription?.cancel();
-    _accelerometerSubscription?.cancel();
-    _linearAccelerationSubscription?.cancel();
     _locationSubscription?.cancel();
-
     super.dispose();
   }
 }

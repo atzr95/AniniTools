@@ -4,7 +4,10 @@ This folder contains the support website for AniniTools, hosted via GitHub Pages
 
 ## Files
 - `index.html` - Main support page with features and FAQ
-- `privacy.html` - Privacy policy page
+- `privacy.html` - English and Bahasa Malaysia policy. Each `<article>` holds one language as headings and paragraphs. Keep its visible words identical to `assets/privacy/en.txt` and `assets/privacy/ms.txt`; `test/privacy_choice_test.dart` checks this.
+- `style.css` - Shared style for both pages (fonts: Doto for the LED sign, Atkinson Hyperlegible Next for text)
+- `icon.png` - App icon, used as the page mark and favicon
+- `fonts/` - Self-hosted Latin subsets of both fonts plus their OFL licenses. Do not link a font host: the pages then make no third-party requests.
 
 ## Setup Instructions
 
@@ -21,10 +24,10 @@ This folder contains the support website for AniniTools, hosted via GitHub Pages
 
 After enabling, your site will be available at:
 ```
-https://yourusername.github.io/aninitools/
+https://atzr95.github.io/AniniTools/
 ```
 
-Replace `yourusername` with your GitHub username and `aninitools` with your repository name.
+These are the existing project URLs. Local edits do not publish them.
 
 ### 3. Use in App Store Connect
 
@@ -34,15 +37,15 @@ When submitting your app to the App Store:
 2. Navigate to your app
 3. Under **App Information**
 4. Add your GitHub Pages URL to:
-   - **Support URL**: `https://yourusername.github.io/aninitools/`
-   - **Privacy Policy URL**: `https://yourusername.github.io/aninitools/privacy.html`
+   - **Support URL**: `https://atzr95.github.io/AniniTools/`
+   - **Privacy Policy URL**: `https://atzr95.github.io/AniniTools/privacy.html`
 
 ## Customization
 
 ### Update Links
 In `index.html`, update the GitHub link in the footer:
 ```html
-<a href="https://github.com/yourusername/aninitools">GitHub</a>
+<a href="https://github.com/atzr95/AniniTools">GitHub</a>
 ```
 
 ### Add More Pages

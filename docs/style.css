@@ -1,0 +1,159 @@
+/* Shared style for the AniniTools support and privacy pages. */
+
+/* Fonts are served from this site (OFL, licenses in fonts/), so visitors
+   make no request to a font host. Latin subset covers English and Malay. */
+@font-face {
+  font-family: "Atkinson Hyperlegible Next";
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("fonts/atkinson-hyperlegible-next-latin.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Doto";
+  font-weight: 800;
+  font-display: swap;
+  src: url("fonts/doto-800-latin.woff2") format("woff2");
+}
+
+:root {
+  --casing: #e9edf1;  /* page: brushed-metal grey-blue */
+  --ink: #17212c;
+  --muted: #4c5967;
+  --rule: #c9d1da;
+  --board: #1b2633;   /* LED sign housing */
+  --led: #ffb224;     /* lit LED amber */
+  --link: #2457c5;
+  --measure: 40rem;
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--casing);
+  color: var(--ink);
+  font: 400 1.0625rem/1.6 "Atkinson Hyperlegible Next", system-ui, sans-serif;
+}
+
+a { color: var(--link); text-underline-offset: 0.18em; overflow-wrap: anywhere; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; border-radius: 4px; }
+
+.wrap { max-width: calc(var(--measure) + 2rem); margin: 0 auto; padding: 0 1rem; }
+
+/* The LED sign: the one loud element. Unlit dots fill the board; lit text glows. */
+.sign {
+  background-color: var(--board);
+  background-image: radial-gradient(circle, rgb(255 255 255 / 0.07) 1.2px, transparent 1.6px);
+  background-size: 8px 8px;
+  color: #c4ced9;
+  overflow: hidden;
+}
+.sign .wrap { padding-top: 1.25rem; padding-bottom: 2rem; }
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: inherit;
+  font-weight: 600;
+  text-decoration: none;
+}
+.brand img { border-radius: 9px; }
+
+.led {
+  margin: 1.75rem 0 0;
+  font: 800 clamp(2.75rem, 13.5vw, 7.5rem)/1 "Doto", monospace;
+  color: var(--led);
+  text-shadow: 0 0 6px rgb(255 178 36 / 0.75), 0 0 28px rgb(255 140 0 / 0.35);
+  white-space: nowrap;
+}
+.led.small { font-size: clamp(2.5rem, 11vw, 5rem); }
+
+/* Scrolls in once, like a Concert Mode message, then rests. */
+.led.scroll span {
+  display: inline-block;
+  animation: scroll-in 1.6s steps(20, end) 0.2s both;
+}
+@keyframes scroll-in {
+  from { transform: translateX(100vw); }
+  to { transform: translateX(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .led.scroll span { animation: none; }
+}
+
+.lead { margin: 1rem 0 0; max-width: 30rem; font-size: 1.25rem; line-height: 1.45; color: #e4e9ef; }
+
+.stores { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1.5rem; }
+.stores a {
+  padding: 0.65rem 1.1rem;
+  border: 1.5px solid #5b6b7d;
+  border-radius: 10px;
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+}
+.stores a:hover { border-color: var(--led); }
+
+main { padding: 2.5rem 0 3rem; }
+
+h1, h2, h3 { line-height: 1.25; font-weight: 700; }
+h2 { margin: 2.75rem 0 0.75rem; font-size: 1.5rem; }
+main > .wrap > section:first-child h2,
+article h1 + .updated + h2 { margin-top: 1.5rem; }
+
+p { margin: 0 0 1rem; }
+
+/* Tool list: name on the left, plain description on the right when there is room. */
+.tools { margin: 0; }
+.tools div { padding: 0.8rem 0; border-top: 1px solid var(--rule); }
+.tools div:last-child { border-bottom: 1px solid var(--rule); }
+.tools dt { font-weight: 700; }
+.tools dd { margin: 0.15rem 0 0; color: var(--muted); }
+@media (min-width: 40rem) {
+  .tools div { display: grid; grid-template-columns: 11rem 1fr; gap: 1.5rem; }
+  .tools dd { margin: 0; }
+}
+
+details { border-top: 1px solid var(--rule); }
+details:last-of-type { border-bottom: 1px solid var(--rule); }
+summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 0;
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+summary::-webkit-details-marker { display: none; }
+summary::after { content: "+"; color: var(--muted); font-weight: 400; transition: transform 0.15s; }
+details[open] summary::after { transform: rotate(45deg); }
+details p { margin: 0 0 1rem; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { summary::after { transition: none; } }
+
+.help {
+  margin-top: 2.75rem;
+  padding: 1.25rem 1.25rem 0.25rem;
+  border-left: 4px solid var(--led);
+  background: #fff;
+  border-radius: 0 10px 10px 0;
+}
+.help h2 { margin-top: 0; }
+
+/* Privacy page */
+.langs { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; margin: 1.5rem 0 0; }
+.langs a { color: #fff; font-weight: 600; }
+
+article { scroll-margin-top: 1rem; }
+article + article { margin-top: 3.5rem; padding-top: 2.5rem; border-top: 2px solid var(--ink); }
+article h1 { margin: 0; font-size: 2rem; }
+article h2 { font-size: 1.25rem; margin: 2rem 0 0.4rem; }
+.updated { color: var(--muted); }
+
+footer { padding: 1.5rem 0 2.5rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.9375rem; }
+footer p { margin: 0 0 0.5rem; }
+footer nav { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; }

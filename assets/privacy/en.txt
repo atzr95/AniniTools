@@ -1,0 +1,41 @@
+AniniTools Privacy Policy
+Updated: 17 November 2026
+
+Who is responsible
+Anthony, trading as Anini, Malaysia, provides AniniTools. Contact: aniniwtf@gmail.com. This notice covers the app and its English and Bahasa Malaysia privacy notices. It describes this updated app; older versions may have sent use and crash reports automatically.
+
+Your choice
+Optional use and crash reports are off until you turn on Share optional app reports in Privacy & data (the shield button on the Flash screen). Every tool works with reports off. You can turn reports off in the same place at any time. Turning them off stops future reports and requests removal of pending crash reports from this device. It does not delete reports already sent to Google. Device permission prompts are separate from this reporting choice.
+
+Information used on your device
+The app reads microphone samples for the recorded signal level, pitch and beat lights. It reads location for coordinates, altitude and speed, and motion, magnetic field, pressure, proximity, light and battery readings for available tools. It uses the camera's light for the flashlight. These functions depend on your device and the permissions you allow. The app does not upload raw microphone audio, GPS coordinates, sensor histories, Concert messages or favorites to us. Optional reports can include a screen name, but not the content you type.
+
+Local storage
+Messages, favorites, settings and your reporting choice are saved as ordinary app preferences on your device. These are not encrypted secret storage. Keep sensitive information out of Concert messages. Removing the app normally removes its local preferences, but system backups or device transfers can retain or restore them. Manage backups through your device settings. Permission changes and reporting choices do not remove your saved messages or favorites.
+
+Optional reports sent to Google
+If you choose to share reports, Google Analytics for Firebase and Firebase Crashlytics process screen-use events, app-instance or installation identifiers, app version, device and operating-system details, crash traces and related diagnostic information. Google Analytics can derive an approximate location from your internet address. These reports help us understand which tools are used and find faults. Identifiers and crash data are not guaranteed anonymous. The app does not ask you to create an account or provide a name. Advertising storage, advertising user-data use and advertising personalization consent are denied by this app. There is no ad display, purchase or subscription feature in this build.
+
+Sources and disclosure
+Local input comes from you and the device sensors. Optional reports come from app activity, device information and the Google software included in the app. Google receives reports as the service provider. We do not sell your personal information. This app does not enable third-party advertising sharing. We may disclose information if law requires it or to handle a rights request. If you email support, your email provider and ours process the email and its contents. Do not send sensitive data unless it is needed for your request.
+
+Retention and deletion
+Local preferences remain until removed by you, the app or the operating system; backup copies follow your backup settings. Google states that Crashlytics keeps crash traces and associated identifiers for 90 days before starting removal from live and backup systems. Detailed Analytics reports follow the property's configured data-retention period; aggregated reports can remain longer. We use retained reports to assess tool use, investigate faults and check fixes. Ask support for the period that applies to a report or for deletion. We do not promise immediate removal of provider copies or that an installation can be identified from your email address alone. Support messages are kept while needed to answer the request, resolve related issues or meet legal duties.
+
+International processing and security
+Google and email providers may process information outside Malaysia or your country. Google publishes data-processing terms and transfer safeguards for its services. We use the providers' security measures and limit access to information needed for support and app operation. No storage or transmission method is completely secure.
+
+Rights and choices
+Depending on the law that applies to you, you can request access, correction, deletion, a copy, restriction or objection to use of your personal information, and withdraw consent. Malaysia users can ask for access or correction and limit processing through the contact above. EU/UK users can also complain to their data-protection authority; withdrawing consent does not change the lawfulness of earlier use. Send privacy requests to aniniwtf@gmail.com. We may need enough information to verify and locate the relevant record. We will explain limits and respond within the period required by applicable law. You can separately revoke microphone, location or camera permissions in device settings.
+
+Children
+The app is a general utility, not a child-directed service. A low store content rating is not a request for children to share reports. Children should leave optional reports off. A parent or guardian who believes a child sent personal information can contact support to request help. We do not knowingly seek personal information from children under 13 or below the applicable local consent age.
+
+Changes and incidents
+We update the date and notices when this policy changes. Material changes to how consent-based information is used require notice and, where required, a new consent choice before that new use. We will handle personal-data incidents and notify authorities or affected people when applicable law requires it. Continued use alone is not consent to new optional reporting.
+
+Provider information
+Firebase privacy: https://firebase.google.com/support/privacy
+Analytics retention: https://support.google.com/analytics/answer/7667196
+Google processing terms: https://firebase.google.com/terms/data-processing-terms
+Support: aniniwtf@gmail.com

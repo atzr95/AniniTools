@@ -1,5 +1,7 @@
 import 'dart:async';
+
 import 'package:sensors_plus/sensors_plus.dart';
+
 import 'vector3_reading.dart';
 
 /// Linear Acceleration service - provides acceleration data WITHOUT gravity
@@ -31,7 +33,7 @@ class LinearAccelerationService {
             _controller.add(Vector3Reading(event.x, event.y, event.z));
           },
           onError: (error) {
-            // Error handling
+            _controller.addError(error);
           },
         );
   }

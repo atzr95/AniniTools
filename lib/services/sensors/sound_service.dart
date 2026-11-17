@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:record/record.dart';
 import 'package:fftea/fftea.dart';
 
-/// Service for monitoring sound intensity (decibel) and pitch (frequency)
+/// Digital microphone level (dBFS) and pitch. No sound-pressure calibration.
 /// Singleton pattern ensures only one instance exists
 class SoundService {
   static final SoundService _instance = SoundService._internal();
@@ -13,6 +14,12 @@ class SoundService {
 
   final AudioRecorder _recorder = AudioRecorder();
   Timer? _recordingTimer;
+  StreamSubscription<Uint8List>? _audioSubscription;
+  StreamSubscription<RecordState>? _stateSubscription;
+  bool _paused = false;
+  Future<void>? _starting;
+  int _amplitudeFailures = 0;
+  static const _maxAmplitudeFailures = 5; // 0.5 s of failed 100 ms polls
 
   // Controllers own the microphone — see AccelerometerService. Both share it,
   // so they share one count: per-controller onListen would double-start.
@@ -27,7 +34,7 @@ class SoundService {
   );
 
   void _retain() {
-    if (_listeners++ == 0) _start();
+    if (_listeners++ == 0) startMonitoring();
   }
 
   void _release() {
@@ -36,6 +43,16 @@ class SoundService {
 
   Stream<double> get decibelStream => _decibelController.stream;
   Stream<PitchData> get pitchStream => _pitchController.stream;
+
+  /// Retry the shared recorder without dropping another screen's listeners.
+  Future<void> startMonitoring() {
+    if (_recordingTimer != null) {
+      // A new listener during an interruption gets no samples; tell it why.
+      if (_paused) _reportPaused();
+      return Future<void>.value();
+    }
+    return _starting ??= _start().whenComplete(() => _starting = null);
+  }
 
   final List<double> _audioBuffer = [];
   static const int _sampleRate = 44100;
@@ -67,9 +84,7 @@ class SoundService {
 
       // Request permission if not granted
       if (!await _hasPermission()) {
-        debugPrint('Audio recording permission not granted - requesting...');
-        // Note: Permission will be requested automatically when starting recording
-        // The app needs microphone permission in AndroidManifest.xml
+        throw StateError('Microphone permission denied');
       }
 
       // The last listener may have cancelled during the awaits above; _stop()
@@ -83,6 +98,7 @@ class SoundService {
           encoder: AudioEncoder.pcm16bits,
           sampleRate: _sampleRate,
           numChannels: 1,
+          audioInterruption: AudioInterruptionMode.pauseResume,
         ),
       );
 
@@ -96,50 +112,63 @@ class SoundService {
       _pitchController.add(PitchData(frequency: 0.0, noteName: '--'));
 
       // Process audio data for pitch detection
-      stream.listen(
+      _audioSubscription = stream.listen(
         (data) {
-          _processAudioData(data);
+          if (!_paused) _processAudioData(data);
         },
         onError: (error) {
           debugPrint('Audio recording error: $error');
+          _reportError(error);
         },
       );
 
-      // Monitor amplitude for decibel calculation.
-      // A 1->0->1 flip inside the awaits above starts a second _start() body;
-      // whichever gets here first owns the timer. Overwriting it would orphan a
-      // Timer.periodic polling getAmplitude() that _stop() can never cancel.
-      if (_recordingTimer != null) return;
+      _paused = false;
+      _amplitudeFailures = 0;
+      _stateSubscription = _recorder.onStateChanged().listen((state) {
+        _paused = state == RecordState.pause;
+        if (_paused) {
+          _audioBuffer.clear();
+          _reportPaused();
+        } else if (state == RecordState.stop) {
+          _reportError(StateError('Microphone stopped'));
+        }
+      }, onError: _reportError);
+
       _recordingTimer = Timer.periodic(const Duration(milliseconds: 100), (
         _,
       ) async {
         // A timer callback has no caller to catch for it, so catch here.
         try {
           final amplitude = await _recorder.getAmplitude();
+          _amplitudeFailures = 0;
+          if (_paused) return;
 
-          // amplitude.current is in dB (typically -160 to 0, where 0 is max)
-          // Convert to standard SPL scale (0-120 dB)
-          // -160 dB (silence) -> 0 dB SPL
-          // 0 dB (max) -> 120 dB SPL
-          // But we want to scale it more realistically:
-          // Typical range: -40 dB to 0 dB -> 40 dB SPL to 120 dB SPL
-
-          if (amplitude.current > -160) {
-            // Map -40 dB to 0 dB -> 40 dB to 120 dB
-            _decibelController.add(
-              ((amplitude.current + 40) * 2).clamp(0, 120).toDouble(),
-            );
-          } else {
-            // Complete silence
-            _decibelController.add(0.0);
-          }
+          // Keep the recorder's digital reference; an offset cannot calibrate a microphone.
+          _decibelController.add(amplitude.current.clamp(-160, 0).toDouble());
         } catch (e) {
           debugPrint('Amplitude read failed: $e');
+          // One failed poll can be a hiccup; stop the shared mic only if it keeps failing.
+          if (++_amplitudeFailures >= _maxAmplitudeFailures) _reportError(e);
         }
       });
     } catch (e) {
       debugPrint('Error starting sound monitoring: $e');
+      _reportError(e);
     }
+  }
+
+  void _reportPaused() {
+    final error = StateError('Microphone interrupted; waiting to resume');
+    _decibelController.addError(error);
+    _pitchController.addError(error);
+  }
+
+  void _reportError(Object error) {
+    _recordingTimer?.cancel();
+    _recordingTimer = null;
+    _decibelController.addError(error);
+    _pitchController.addError(error);
+    _stop();
   }
 
   /// Process audio data for pitch detection using FFT
@@ -240,15 +269,22 @@ class SoundService {
 
   /// Stop listening to audio
   Future<void> _stop() async {
+    _paused = true;
     _recordingTimer?.cancel();
     _recordingTimer = null;
     _audioBuffer.clear();
+    await _stateSubscription?.cancel();
+    _stateSubscription = null;
+    await _audioSubscription?.cancel();
+    _audioSubscription = null;
 
     // `stop()` is what releases the microphone. The recorder itself is NOT
     // disposed: this singleton outlives every screen and retrySoundMonitoring()
     // reuses it, so tearing it down here would break the restart path.
-    if (await _recorder.isRecording()) {
-      await _recorder.stop();
+    try {
+      if (await _recorder.isRecording()) await _recorder.stop();
+    } catch (e) {
+      debugPrint('Error stopping sound monitoring: $e');
     }
   }
 }

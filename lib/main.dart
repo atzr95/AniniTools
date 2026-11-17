@@ -1,4 +1,5 @@
 import 'dart:ui';
+
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,8 +7,11 @@ import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'firebase_options.dart';
 import 'models/prefs.dart';
+import 'models/reporting_preferences.dart';
 import 'views/home_screen.dart';
 import 'views/tools/spirit_level_screen.dart';
 import 'views/tools/metal_detector_screen.dart';
@@ -53,12 +57,43 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Initialize Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   // Initialize Firebase Analytics
   FirebaseAnalytics analytics = FirebaseAnalytics.instance;
+  final reportingPrefs = await SharedPreferences.getInstance();
+  var previouslyEnabled = reportingPrefs.getBool('optional_app_reports') ?? false;
+  final reporting = ReportingPreferences(
+    reportingPrefs,
+    apply: (enabled) async {
+      // Native defaults also keep collection off before Dart can read consent.
+      await analytics.setConsent(
+        analyticsStorageConsentGranted: enabled,
+        adStorageConsentGranted: false,
+        adUserDataConsentGranted: false,
+        adPersonalizationSignalsConsentGranted: false,
+      );
+      await analytics.setAnalyticsCollectionEnabled(enabled);
+      if (enabled && !previouslyEnabled) {
+        // Do not upload crashes cached before this choice was given.
+        await FirebaseCrashlytics.instance.deleteUnsentReports();
+      }
+      await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(
+        enabled,
+      );
+      if (!enabled) {
+        await analytics.resetAnalyticsData();
+        await FirebaseCrashlytics.instance.deleteUnsentReports();
+      }
+      previouslyEnabled = enabled;
+    },
+  );
+  try {
+    await reporting.initialize();
+  } catch (_) {
+    // Optional reports must not prevent the tools from opening.
+    if (kDebugMode) debugPrint('Could not apply the reporting choice');
+  }
 
   // Initialize Firebase Crashlytics with error filtering
   FlutterError.onError = (errorDetails) {
@@ -66,7 +101,7 @@ void main() async {
     // In debug builds, print them again so layout overflows etc. stay visible.
     if (kDebugMode) FlutterError.presentError(errorDetails);
     // Filter out sensor-related errors
-    if (_shouldReportError(errorDetails.exception)) {
+    if (reporting.enabled && _shouldReportError(errorDetails.exception)) {
       FirebaseCrashlytics.instance.recordFlutterFatalError(errorDetails);
     }
   };
@@ -75,7 +110,7 @@ void main() async {
   PlatformDispatcher.instance.onError = (error, stack) {
     // Returning true below marks the error handled, which hides it. Print it in debug builds.
     if (kDebugMode) debugPrint('Uncaught async error: $error\n$stack');
-    if (_shouldReportError(error)) {
+    if (reporting.enabled && _shouldReportError(error)) {
       FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
     }
     return true;
@@ -90,7 +125,12 @@ void main() async {
     DeviceOrientation.portraitDown,
   ]);
 
-  runApp(AniniToolsApp(analytics: analytics));
+  runApp(
+    ChangeNotifierProvider.value(
+      value: reporting,
+      child: AniniToolsApp(analytics: analytics),
+    ),
+  );
 }
 
 class AniniToolsApp extends StatelessWidget {
@@ -105,19 +145,25 @@ class AniniToolsApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       // Dark only — there is no theme toggle in the app.
       theme: _buildTheme(),
-      navigatorObservers: [
-        FirebaseAnalyticsObserver(analytics: analytics),
-      ],
+      navigatorObservers: [FirebaseAnalyticsObserver(analytics: analytics)],
       home: const HomeScreen(),
       routes: {
-        '/spirit-level': (_) => _withSensors(const SpiritLevelScreen()),
-        '/metal-detector': (_) => _withSensors(const MetalDetectorScreen()),
-        '/decibel-meter': (_) => _withSensors(const DecibelMeterScreen()),
+        '/spirit-level': (_) =>
+            _withSensors(const SpiritLevelScreen(), {'orientation'}),
+        '/metal-detector': (_) =>
+            _withSensors(const MetalDetectorScreen(), {'magnetic'}),
+        '/decibel-meter': (_) =>
+            _withSensors(const DecibelMeterScreen(), {'sound'}),
         '/altitude-calculator': (_) =>
-            _withSensors(const AltitudeCalculatorScreen()),
-        '/vibration-analyzer': (_) =>
-            _withSensors(const VibrationAnalyzerScreen()),
-        '/g-force-meter': (_) => _withSensors(const AccelerometerScreen()),
+            _withSensors(const AltitudeCalculatorScreen(), {'pressure', 'gps'}),
+        '/vibration-analyzer': (_) => _withSensors(
+          const VibrationAnalyzerScreen(),
+          {'linearAcceleration'},
+        ),
+        '/g-force-meter': (_) => _withSensors(const AccelerometerScreen(), {
+          'linearAcceleration',
+          'gps',
+        }),
       },
     );
   }
@@ -127,8 +173,9 @@ class AniniToolsApp extends StatelessWidget {
   /// Safe even though the Sensors screen stays mounted underneath: the sensor
   /// services start on their first stream listener and stop on their last, so
   /// disposing this view model only drops its own subscriptions.
-  static Widget _withSensors(Widget child) => ChangeNotifierProvider(
-        create: (_) => SensorViewModel()..initialize(),
+  static Widget _withSensors(Widget child, Set<String> sensors) =>
+      ChangeNotifierProvider(
+        create: (_) => SensorViewModel()..initialize(sensors: sensors),
         child: child,
       );
 

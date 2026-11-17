@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 
@@ -38,6 +39,7 @@ class MagnetometerService {
           },
           onError: (error) {
             debugPrint('Magnetometer error: $error');
+            _controller.addError(error);
           },
         );
   }

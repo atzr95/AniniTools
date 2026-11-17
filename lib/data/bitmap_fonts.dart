@@ -14,6 +14,12 @@ import 'package:flutter/material.dart';
 //  █   █   = 10001 = 0x11
 
 class BitmapFonts {
+  /// Font keys are whole Unicode code points; variation selectors have no dots.
+  static List<String> glyphs(String text) => text.runes
+      .where((rune) => rune != 0xFE0E && rune != 0xFE0F)
+      .map(String.fromCharCode)
+      .toList(growable: false);
+
   /// Standard 5x7 character width and height
   static const int charWidth = 5;
   static const int charHeight = 7;
@@ -135,27 +141,22 @@ class BitmapFonts {
     '🖤': [0x00, 0x0A, 0x1F, 0x1F, 0x0E, 0x04, 0x00], // Black heart
     '🤍': [0x00, 0x0A, 0x1F, 0x1F, 0x0E, 0x04, 0x00], // White heart
     '💗': [0x00, 0x0A, 0x1F, 0x1F, 0x0E, 0x04, 0x00], // Growing heart
-
     // Star symbols
     '⭐': [0x04, 0x04, 0x1F, 0x0E, 0x0A, 0x11, 0x00], // Star
     '🌟': [0x04, 0x04, 0x1F, 0x0E, 0x0A, 0x11, 0x00], // Glowing star
     '✨': [0x11, 0x0A, 0x04, 0x0E, 0x04, 0x0A, 0x11], // Sparkles
-
     // Face/emotion symbols (simplified for 5x7)
     '😀': [0x0E, 0x11, 0x15, 0x11, 0x1D, 0x11, 0x0E], // Grinning face
     '😊': [0x0E, 0x11, 0x15, 0x11, 0x11, 0x1D, 0x0E], // Smiling face
     '😍': [0x0E, 0x15, 0x15, 0x11, 0x1D, 0x11, 0x0E], // Heart eyes
     '🔥': [0x04, 0x04, 0x0E, 0x0E, 0x1F, 0x0E, 0x04], // Fire
-
     // Music symbols
     '🎵': [0x0C, 0x0A, 0x08, 0x08, 0x1C, 0x1C, 0x00], // Musical note
     '🎶': [0x0C, 0x0B, 0x09, 0x18, 0x18, 0x00, 0x00], // Musical notes
-
     // Weather symbols
     '☀': [0x11, 0x0E, 0x1F, 0x1F, 0x1F, 0x0E, 0x11], // Sun
     '🌙': [0x06, 0x0C, 0x08, 0x08, 0x0C, 0x06, 0x00], // Moon
     '⚡': [0x02, 0x04, 0x0F, 0x04, 0x08, 0x10, 0x00], // Lightning
-
     // Misc symbols
     '✓': [0x00, 0x01, 0x02, 0x14, 0x08, 0x00, 0x00], // Checkmark
     '✔': [0x00, 0x01, 0x02, 0x14, 0x08, 0x00, 0x00], // Heavy checkmark
@@ -189,10 +190,9 @@ class BitmapFonts {
   /// Returns the natural/expected color for emojis
   static const Map<String, Color> _emojiColors = {
     // Red hearts
-    '♥': Color(0xFFE91E63),  // Red/Pink
-    '❤': Color(0xFFE91E63),  // Red/Pink
+    '♥': Color(0xFFE91E63), // Red/Pink
+    '❤': Color(0xFFE91E63), // Red/Pink
     '💗': Color(0xFFE91E63), // Pink heart
-
     // Colored hearts
     '💜': Color(0xFF9C27B0), // Purple heart
     '💙': Color(0xFF2196F3), // Blue heart
@@ -201,23 +201,18 @@ class BitmapFonts {
     '🧡': Color(0xFFFF9800), // Orange heart
     '🖤': Color(0xFF424242), // Black heart (dark grey)
     '🤍': Color(0xFFFFFFFF), // White heart
-
     // Stars
     '⭐': Color(0xFFFFD700), // Gold star
     '🌟': Color(0xFFFFD700), // Glowing gold star
     '✨': Color(0xFFFFD700), // Gold sparkles
-
     // Fire
     '🔥': Color(0xFFFF5722), // Fire orange
-
     // Sun/Moon
-    '☀': Color(0xFFFFEB3B),  // Sun yellow
-    '☼': Color(0xFFFFEB3B),  // Sun yellow
+    '☀': Color(0xFFFFEB3B), // Sun yellow
+    '☼': Color(0xFFFFEB3B), // Sun yellow
     '🌙': Color(0xFFFFF59D), // Moon pale yellow
-
     // Lightning
     '⚡': Color(0xFFFFEB3B), // Yellow lightning
-
     // Faces (yellow emoji skin tone)
     '😀': Color(0xFFFFEB3B),
     '😊': Color(0xFFFFEB3B),
@@ -232,11 +227,10 @@ class BitmapFonts {
     '♫': Color(0xFF9C27B0),
 
     // Check/X marks
-    '✓': Color(0xFF4CAF50),  // Green check
-    '✔': Color(0xFF4CAF50),  // Green check
-    '✗': Color(0xFFF44336),  // Red X
-    '✘': Color(0xFFF44336),  // Red X
-
+    '✓': Color(0xFF4CAF50), // Green check
+    '✔': Color(0xFF4CAF50), // Green check
+    '✗': Color(0xFFF44336), // Red X
+    '✘': Color(0xFFF44336), // Red X
     // Card suits (♥ already defined above in hearts section)
     '♦': Color(0xFFE91E63), // Red diamond
     '♠': Color(0xFF212121), // Black spade

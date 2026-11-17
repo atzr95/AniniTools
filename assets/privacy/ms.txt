@@ -1,0 +1,41 @@
+Notis Privasi AniniTools
+Dikemas kini: 17 November 2026
+
+Pihak yang bertanggungjawab
+Anthony, yang menggunakan nama perniagaan Anini di Malaysia, menyediakan AniniTools. Hubungi: aniniwtf@gmail.com. Notis ini meliputi aplikasi serta notis privasinya dalam bahasa Inggeris dan Bahasa Malaysia. Notis ini menerangkan aplikasi yang dikemas kini ini; versi lama mungkin menghantar laporan penggunaan dan kerosakan secara automatik.
+
+Pilihan anda
+Laporan penggunaan dan kerosakan pilihan dimatikan sehingga anda menghidupkan Share optional app reports dalam Privacy & data (butang perisai pada skrin Flash). Semua alat boleh digunakan apabila laporan dimatikan. Anda boleh mematikannya semula di tempat yang sama pada bila-bila masa. Tindakan ini menghentikan laporan baharu dan meminta pemadaman laporan kerosakan yang belum dihantar dari peranti ini. Laporan yang telah dihantar kepada Google tidak dipadamkan oleh tindakan ini. Kebenaran sensor peranti adalah berasingan daripada pilihan laporan ini.
+
+Maklumat yang digunakan pada peranti
+Aplikasi membaca sampel mikrofon untuk aras isyarat rakaman, pic dan lampu mengikut rentak. Lokasi digunakan untuk koordinat, altitud dan kelajuan. Bacaan gerakan, medan magnet, tekanan, jarak, cahaya dan bateri digunakan untuk alat yang tersedia. Lampu kamera digunakan sebagai lampu suluh. Fungsi ini bergantung pada peranti dan kebenaran yang anda berikan. Aplikasi tidak memuat naik audio mikrofon mentah, koordinat GPS, sejarah sensor, mesej Concert atau kegemaran kepada kami. Laporan pilihan boleh mengandungi nama skrin, tetapi bukan kandungan yang anda taip.
+
+Storan setempat
+Mesej, kegemaran, tetapan dan pilihan laporan disimpan sebagai tetapan aplikasi biasa pada peranti anda. Storan ini bukan storan rahsia yang disulitkan. Jangan masukkan maklumat sensitif dalam mesej Concert. Menyahpasang aplikasi biasanya membuang tetapan setempat, tetapi sandaran sistem atau pemindahan peranti boleh menyimpan atau memulihkannya. Urus sandaran melalui tetapan peranti. Perubahan kebenaran atau pilihan laporan tidak memadamkan mesej dan kegemaran anda.
+
+Laporan pilihan kepada Google
+Jika anda memilih untuk berkongsi laporan, Google Analytics for Firebase dan Firebase Crashlytics memproses peristiwa penggunaan skrin, pengecam pemasangan atau salinan aplikasi, versi aplikasi, butiran peranti dan sistem pengendalian, jejak kerosakan serta maklumat diagnostik berkaitan. Google Analytics boleh menganggarkan lokasi daripada alamat internet anda. Laporan ini membantu kami memahami alat yang digunakan dan mencari kerosakan. Pengecam dan data kerosakan tidak semestinya tanpa nama. Aplikasi tidak meminta anda membuka akaun atau memberikan nama. Persetujuan untuk storan pengiklanan, penggunaan data pengguna untuk pengiklanan dan pemperibadian iklan ditolak oleh aplikasi ini. Binaan ini tidak mempunyai paparan iklan, pembelian atau langganan.
+
+Sumber dan pendedahan
+Input setempat datang daripada anda dan sensor peranti. Laporan pilihan datang daripada aktiviti aplikasi, maklumat peranti dan perisian Google dalam aplikasi. Google menerima laporan sebagai penyedia perkhidmatan. Kami tidak menjual maklumat peribadi anda. Aplikasi ini tidak mengaktifkan perkongsian untuk pengiklanan pihak ketiga. Kami mungkin mendedahkan maklumat jika diwajibkan undang-undang atau untuk mengendalikan permintaan hak anda. Jika anda menghantar e-mel sokongan, penyedia e-mel anda dan kami memproses e-mel serta kandungannya. Jangan hantar data sensitif kecuali diperlukan untuk permintaan anda.
+
+Tempoh simpanan dan pemadaman
+Tetapan setempat kekal sehingga dibuang oleh anda, aplikasi atau sistem pengendalian; salinan sandaran mengikut tetapan sandaran anda. Google menyatakan bahawa Crashlytics menyimpan jejak kerosakan dan pengecam berkaitan selama 90 hari sebelum memulakan pemadaman daripada sistem aktif dan sandaran. Laporan Analytics terperinci mengikut tempoh simpanan data yang ditetapkan untuk harta Analytics; laporan terkumpul boleh kekal lebih lama. Kami menggunakan laporan yang disimpan untuk menilai penggunaan alat, menyiasat kerosakan dan memeriksa pembaikan. Hubungi sokongan untuk tempoh yang berkenaan atau permintaan pemadaman. Kami tidak menjanjikan pemadaman serta-merta bagi salinan penyedia atau bahawa pemasangan boleh dikenal pasti hanya melalui alamat e-mel anda. E-mel sokongan disimpan selagi diperlukan untuk menjawab permintaan, menyelesaikan isu berkaitan atau memenuhi kewajipan undang-undang.
+
+Pemprosesan antarabangsa dan keselamatan
+Google dan penyedia e-mel mungkin memproses maklumat di luar Malaysia atau negara anda. Google menerbitkan terma pemprosesan data dan perlindungan pemindahan untuk perkhidmatannya. Kami menggunakan langkah keselamatan penyedia dan mengehadkan akses kepada maklumat yang diperlukan untuk sokongan dan operasi aplikasi. Tiada kaedah storan atau penghantaran yang selamat sepenuhnya.
+
+Hak dan pilihan
+Bergantung pada undang-undang yang terpakai, anda boleh meminta akses, pembetulan, pemadaman, salinan, sekatan atau membantah penggunaan maklumat peribadi anda, serta menarik balik persetujuan. Pengguna Malaysia boleh meminta akses atau pembetulan dan mengehadkan pemprosesan melalui alamat hubungan di atas. Pengguna EU/UK juga boleh membuat aduan kepada pihak berkuasa perlindungan data mereka; penarikan balik persetujuan tidak mengubah kesahan penggunaan terdahulu. Hantar permintaan privasi kepada aniniwtf@gmail.com. Kami mungkin memerlukan maklumat yang mencukupi untuk mengesahkan dan mencari rekod berkaitan. Kami akan menerangkan had dan menjawab dalam tempoh yang diwajibkan undang-undang. Anda juga boleh menarik balik kebenaran mikrofon, lokasi atau kamera dalam tetapan peranti.
+
+Kanak-kanak
+Aplikasi ini ialah utiliti umum dan bukan perkhidmatan yang ditujukan kepada kanak-kanak. Penarafan kandungan rendah di kedai bukan permintaan supaya kanak-kanak berkongsi laporan. Kanak-kanak hendaklah membiarkan laporan pilihan dimatikan. Ibu bapa atau penjaga yang percaya bahawa kanak-kanak telah menghantar maklumat peribadi boleh menghubungi sokongan untuk bantuan. Kami tidak dengan sengaja meminta maklumat peribadi daripada kanak-kanak di bawah umur 13 tahun atau di bawah umur persetujuan tempatan yang berkenaan.
+
+Perubahan dan insiden
+Kami mengemas kini tarikh dan notis apabila dasar ini berubah. Perubahan penting kepada penggunaan maklumat berasaskan persetujuan memerlukan notis dan, apabila diwajibkan, pilihan persetujuan baharu sebelum penggunaan baharu tersebut. Kami akan mengendalikan insiden data peribadi dan memaklumkan pihak berkuasa atau orang yang terjejas apabila diwajibkan undang-undang. Penggunaan berterusan sahaja bukan persetujuan untuk laporan pilihan baharu.
+
+Maklumat penyedia
+Privasi Firebase: https://firebase.google.com/support/privacy
+Simpanan Analytics: https://support.google.com/analytics/answer/7667196
+Terma pemprosesan Google: https://firebase.google.com/terms/data-processing-terms
+Sokongan: aniniwtf@gmail.com

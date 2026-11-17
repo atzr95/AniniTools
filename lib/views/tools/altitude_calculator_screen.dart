@@ -1,6 +1,8 @@
 import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../../viewmodels/sensor_viewmodel.dart';
 import '../../widgets/measurement_card.dart';
 import '../../utils/capped_list.dart';
@@ -15,7 +17,8 @@ class AltitudeCalculatorScreen extends StatefulWidget {
 }
 
 class _AltitudeCalculatorScreenState extends State<AltitudeCalculatorScreen> {
-  double _seaLevelPressure = 1013.25; // Standard atmospheric pressure at sea level
+  double _seaLevelPressure =
+      1013.25; // Standard atmospheric pressure at sea level
   bool _useManualSeaLevel = false;
   bool _isCalibrated = false;
 
@@ -23,24 +26,62 @@ class _AltitudeCalculatorScreenState extends State<AltitudeCalculatorScreen> {
   static const int _maxHistoryLength = 100;
 
   // Pressure trend tracking
-  final List<double> _pressureHistory = [];
-  static const int _pressureTrendLength = 20;
+  final List<({DateTime time, double pressure})> _pressureHistory = [];
+  SensorViewModel? _model;
+  int _lastSample = 0;
 
-  void _updateHistory(double altitude, double pressure, double gpsAltitude) {
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_model != null) return;
+    _model = context.read<SensorViewModel>();
+    _model!.addListener(_recordReading);
+    _recordReading();
+  }
+
+  void _recordReading() {
+    final model = _model!;
+    final version = model.sampleVersion('pressure');
+    if (!model.isSensorAvailable('pressure') || version == _lastSample) return;
+    _lastSample = version;
+    _updateHistory(
+      _calculateAltitude(
+        model.pressure,
+        _useManualSeaLevel ? _seaLevelPressure : 1013.25,
+      ),
+      model.pressure,
+      model.isSensorAvailable('gps') ? model.altitude : null,
+    );
+  }
+
+  @override
+  void dispose() {
+    _model?.removeListener(_recordReading);
+    super.dispose();
+  }
+
+  void _updateHistory(double altitude, double pressure, double? gpsAltitude) {
     setState(() {
-      _history.pushCapped(
-        AltitudeReading(baroAltitude: altitude, gpsAltitude: gpsAltitude),
-        _maxHistoryLength,
-      );
-      _pressureHistory.pushCapped(pressure, _pressureTrendLength);
+      if (gpsAltitude != null) {
+        _history.pushCapped(
+          AltitudeReading(baroAltitude: altitude, gpsAltitude: gpsAltitude),
+          _maxHistoryLength,
+        );
+      }
+      final now = DateTime.now();
+      if (_pressureHistory.isEmpty ||
+          now.difference(_pressureHistory.last.time) >=
+              const Duration(minutes: 1)) {
+        _pressureHistory.pushCapped((time: now, pressure: pressure), 60);
+      }
     });
   }
 
   String _getPressureTrend() {
     if (_pressureHistory.length < 2) return 'Insufficient data';
 
-    final oldPressure = _pressureHistory.first;
-    final newPressure = _pressureHistory.last;
+    final oldPressure = _pressureHistory.first.pressure;
+    final newPressure = _pressureHistory.last.pressure;
     final diff = newPressure - oldPressure;
 
     if (diff.abs() < 0.5) {
@@ -53,10 +94,14 @@ class _AltitudeCalculatorScreenState extends State<AltitudeCalculatorScreen> {
   }
 
   String _getWeatherPrediction() {
-    if (_pressureHistory.length < 2) return 'Need more data';
+    if (_pressureHistory.length < 2 ||
+        _pressureHistory.last.time.difference(_pressureHistory.first.time) <
+            const Duration(minutes: 15)) {
+      return 'Collecting 15 min of readings';
+    }
 
-    final oldPressure = _pressureHistory.first;
-    final newPressure = _pressureHistory.last;
+    final oldPressure = _pressureHistory.first.pressure;
+    final newPressure = _pressureHistory.last.pressure;
     final diff = newPressure - oldPressure;
 
     if (diff > 2.0) {
@@ -73,7 +118,7 @@ class _AltitudeCalculatorScreenState extends State<AltitudeCalculatorScreen> {
   }
 
   void _calibrateFromGPS(double gpsAltitude, double currentPressure) {
-    if (currentPressure <= 0 || gpsAltitude == 0.0) return;
+    if (currentPressure <= 0) return;
 
     // Back-calculate sea level pressure: P0 = P / (1 - h/44330)^5.255
     final ratio = 1 - gpsAltitude / 44330;
@@ -104,7 +149,8 @@ class _AltitudeCalculatorScreenState extends State<AltitudeCalculatorScreen> {
                 onPressed: () {
                   final pressure = viewModel.pressure;
                   final gpsAltitude = viewModel.altitude;
-                  if (pressure <= 0 || gpsAltitude == 0.0) {
+                  if (!viewModel.isSensorAvailable('pressure') ||
+                      !viewModel.isSensorAvailable('gps')) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text(
@@ -135,22 +181,27 @@ class _AltitudeCalculatorScreenState extends State<AltitudeCalculatorScreen> {
       ),
       body: Consumer<SensorViewModel>(
         builder: (context, viewModel, _) {
+          if (!viewModel.isSensorAvailable('pressure')) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text(
+                  'Pressure sensor unavailable. Waiting for a reading.',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            );
+          }
           // Get current readings
           final pressure = viewModel.pressure;
           final gpsAltitude = viewModel.altitude;
           final latitude = viewModel.latitude;
           final longitude = viewModel.longitude;
+          final hasGPS = viewModel.isSensorAvailable('gps');
 
           // Calculate barometric altitude
           final seaLevel = _useManualSeaLevel ? _seaLevelPressure : 1013.25;
           final baroAltitude = _calculateAltitude(pressure, seaLevel);
-
-          // Update history after build completes
-          if (pressure > 0) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              _updateHistory(baroAltitude, pressure, gpsAltitude);
-            });
-          }
 
           final pressureTrend = _getPressureTrend();
           final weatherPrediction = _getWeatherPrediction();
@@ -160,6 +211,24 @@ class _AltitudeCalculatorScreenState extends State<AltitudeCalculatorScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (!hasGPS) ...[
+                  Text(viewModel.gpsStatus),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      TextButton(
+                        onPressed: viewModel.isLoadingGPS
+                            ? null
+                            : viewModel.retryLocationPermission,
+                        child: const Text('Retry location'),
+                      ),
+                      TextButton(
+                        onPressed: viewModel.openAppSettings,
+                        child: const Text('Open app settings'),
+                      ),
+                    ],
+                  ),
+                ],
                 // Main altitude display
                 Card(
                   elevation: 4,
@@ -186,7 +255,9 @@ class _AltitudeCalculatorScreenState extends State<AltitudeCalculatorScreen> {
                         ),
                         const SizedBox(height: 24),
                         Text(
-                          '${gpsAltitude.toStringAsFixed(1)} m',
+                          hasGPS
+                              ? '${gpsAltitude.toStringAsFixed(1)} m'
+                              : '— m',
                           style: theme.textTheme.displayLarge?.copyWith(
                             fontWeight: FontWeight.bold,
                             fontFamily: 'monospace',
@@ -195,7 +266,9 @@ class _AltitudeCalculatorScreenState extends State<AltitudeCalculatorScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          '${(gpsAltitude * 3.28084).toStringAsFixed(1)} ft',
+                          hasGPS
+                              ? '${(gpsAltitude * 3.28084).toStringAsFixed(1)} ft'
+                              : '— ft',
                           style: theme.textTheme.titleMedium?.copyWith(
                             color: colorScheme.onSurface.withValues(alpha: 0.7),
                             fontFamily: 'monospace',
@@ -229,8 +302,9 @@ class _AltitudeCalculatorScreenState extends State<AltitudeCalculatorScreen> {
                     Expanded(
                       child: MeasurementCard(
                         label: 'Difference',
-                        value:
-                            '${(baroAltitude - gpsAltitude).abs().toStringAsFixed(1)} m',
+                        value: hasGPS
+                            ? '${(baroAltitude - gpsAltitude).abs().toStringAsFixed(1)} m'
+                            : '— m',
                         icon: Icons.compare_arrows,
                       ),
                     ),
@@ -271,10 +345,7 @@ class _AltitudeCalculatorScreenState extends State<AltitudeCalculatorScreen> {
                       children: [
                         Row(
                           children: [
-                            Icon(
-                              Icons.trending_up,
-                              color: colorScheme.primary,
-                            ),
+                            Icon(Icons.trending_up, color: colorScheme.primary),
                             const SizedBox(width: 8),
                             Text(
                               'Pressure Trend',
@@ -316,11 +387,11 @@ class _AltitudeCalculatorScreenState extends State<AltitudeCalculatorScreen> {
                         const SizedBox(height: 12),
                         _buildLocationRow(
                           'Latitude',
-                          '${latitude.toStringAsFixed(6)}°',
+                          hasGPS ? '${latitude.toStringAsFixed(6)}°' : '—',
                         ),
                         _buildLocationRow(
                           'Longitude',
-                          '${longitude.toStringAsFixed(6)}°',
+                          hasGPS ? '${longitude.toStringAsFixed(6)}°' : '—',
                         ),
                       ],
                     ),
@@ -365,10 +436,7 @@ class _AltitudeCalculatorScreenState extends State<AltitudeCalculatorScreen> {
                                 colorScheme.primary,
                               ),
                               const SizedBox(width: 16),
-                              _buildLegendItem(
-                                'GPS',
-                                colorScheme.secondary,
-                              ),
+                              _buildLegendItem('GPS', colorScheme.secondary),
                             ],
                           ),
                         ],
@@ -387,7 +455,10 @@ class _AltitudeCalculatorScreenState extends State<AltitudeCalculatorScreen> {
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.info_outline, color: colorScheme.primary),
+                            Icon(
+                              Icons.info_outline,
+                              color: colorScheme.primary,
+                            ),
                             const SizedBox(width: 8),
                             Text(
                               'About Altitude Calculation',
@@ -445,7 +516,10 @@ class _AltitudeCalculatorScreenState extends State<AltitudeCalculatorScreen> {
                         _buildReferenceRow('La Paz, Bolivia', '3,640 m'),
                         _buildReferenceRow('Mt. Everest Base Camp', '5,364 m'),
                         _buildReferenceRow('Mt. Everest Summit', '8,849 m'),
-                        _buildReferenceRow('Commercial Aircraft', '10,000-12,000 m'),
+                        _buildReferenceRow(
+                          'Commercial Aircraft',
+                          '10,000-12,000 m',
+                        ),
                       ],
                     ),
                   ),
@@ -464,14 +538,8 @@ class _AltitudeCalculatorScreenState extends State<AltitudeCalculatorScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: const TextStyle(fontWeight: FontWeight.w500),
-          ),
-          Text(
-            value,
-            style: const TextStyle(fontFamily: 'monospace'),
-          ),
+          Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
+          Text(value, style: const TextStyle(fontFamily: 'monospace')),
         ],
       ),
     );
@@ -483,14 +551,8 @@ class _AltitudeCalculatorScreenState extends State<AltitudeCalculatorScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: const TextStyle(fontWeight: FontWeight.w500),
-          ),
-          Text(
-            value,
-            style: const TextStyle(fontFamily: 'monospace'),
-          ),
+          Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
+          Text(value, style: const TextStyle(fontFamily: 'monospace')),
         ],
       ),
     );
@@ -531,16 +593,9 @@ class _AltitudeCalculatorScreenState extends State<AltitudeCalculatorScreen> {
   Widget _buildLegendItem(String label, Color color) {
     return Row(
       children: [
-        Container(
-          width: 16,
-          height: 3,
-          color: color,
-        ),
+        Container(width: 16, height: 3, color: color),
         const SizedBox(width: 6),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 12),
-        ),
+        Text(label, style: const TextStyle(fontSize: 12)),
       ],
     );
   }
@@ -550,7 +605,8 @@ class _AltitudeCalculatorScreenState extends State<AltitudeCalculatorScreen> {
 
     // Standard atmosphere formula
     // h = 44330 * (1 - (P/P0)^(1/5.255))
-    return (44330 * (1 - math.pow(pressure / seaLevelPressure, 1 / 5.255))).toDouble();
+    return (44330 * (1 - math.pow(pressure / seaLevelPressure, 1 / 5.255)))
+        .toDouble();
   }
 
   void _showSettingsDialog(BuildContext context) {
@@ -573,7 +629,8 @@ class _AltitudeCalculatorScreenState extends State<AltitudeCalculatorScreen> {
                         onPressed: () {
                           final pressure = viewModel.pressure;
                           final gpsAlt = viewModel.altitude;
-                          if (pressure <= 0 || gpsAlt == 0.0) {
+                          if (!viewModel.isSensorAvailable('pressure') ||
+                              !viewModel.isSensorAvailable('gps')) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text(
@@ -648,7 +705,10 @@ class _AltitudeCalculatorScreenState extends State<AltitudeCalculatorScreen> {
                     ),
                     const Text(
                       'Tip: Check local weather station for accurate sea level pressure',
-                      style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontStyle: FontStyle.italic,
+                      ),
                     ),
                   ],
                 ],
@@ -698,8 +758,14 @@ class AltitudeHistoryPainter extends CustomPainter {
     double maxAlt = double.negativeInfinity;
 
     for (final reading in history) {
-      minAlt = math.min(minAlt, math.min(reading.baroAltitude, reading.gpsAltitude));
-      maxAlt = math.max(maxAlt, math.max(reading.baroAltitude, reading.gpsAltitude));
+      minAlt = math.min(
+        minAlt,
+        math.min(reading.baroAltitude, reading.gpsAltitude),
+      );
+      maxAlt = math.max(
+        maxAlt,
+        math.max(reading.baroAltitude, reading.gpsAltitude),
+      );
     }
 
     final range = maxAlt - minAlt;
@@ -770,6 +836,6 @@ class AltitudeHistoryPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(AltitudeHistoryPainter oldDelegate) {
-    return oldDelegate.history != history;
+    return true;
   }
 }

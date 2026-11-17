@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:audioplayers/audioplayers.dart';
+
 import '../../viewmodels/sensor_viewmodel.dart';
 import '../../widgets/measurement_card.dart';
 import '../../utils/capped_list.dart';
@@ -19,7 +21,7 @@ class MetalDetectorScreen extends StatefulWidget {
 class _MetalDetectorScreenState extends State<MetalDetectorScreen> {
   double _baselineMagnitude = 0.0;
   bool _isCalibrated = false;
-  double _sensitivity = 50.0; // 0-100 scale
+  double _sensitivity = 50.0; // Detection range: 10 (more sensitive) to 200.
   bool _audioEnabled = true;
 
   double _maxRecorded = 0.0;
@@ -28,15 +30,19 @@ class _MetalDetectorScreenState extends State<MetalDetectorScreen> {
 
   Timer? _beepTimer;
   final AudioPlayer _audioPlayer = AudioPlayer();
-  double _lastDetectionStrength = -1; // Track last strength to avoid recreating timer
+  double _lastDetectionStrength =
+      -1; // Track last strength to avoid recreating timer
 
   // Smoothing for magnetic field to reduce false positives from hand movement
   double _smoothedMagnitude = 0.0;
-  static const double _smoothingFactor = 0.15; // Stronger smoothing for stability
+  static const double _smoothingFactor =
+      0.15; // Stronger smoothing for stability
   final List<double> _calibrationSamples = [];
 
-  // Dynamic baseline adjustment to prevent getting stuck at high values
-  int _lowDetectionCount = 0;
+  SensorViewModel? _model;
+  int _lastSample = 0;
+  bool _isCollectingCalibration = false;
+  double _deviation = 0, _detectionStrength = 0;
 
   // Detection threshold - minimum deviation to consider (in µT)
   // Earth's field is ~25-65µT, natural variations are ~1-3µT
@@ -52,24 +58,61 @@ class _MetalDetectorScreenState extends State<MetalDetectorScreen> {
     _startAutoCalibration();
   }
 
-  void _startAutoCalibration() async {
-    // Collect multiple samples for better baseline (20 samples over 2 seconds)
-    _calibrationSamples.clear();
+  void _startAutoCalibration() {
+    setState(() {
+      _calibrationSamples.clear();
+      _isCollectingCalibration = true;
+      _isCalibrated = false;
+      _deviation = _detectionStrength = 0;
+    });
+    _beepTimer?.cancel();
+    _lastDetectionStrength = -1;
+  }
 
-    for (int i = 0; i < 20; i++) {
-      await Future.delayed(const Duration(milliseconds: 100));
-      if (mounted) {
-        final viewModel = Provider.of<SensorViewModel>(context, listen: false);
-        _calibrationSamples.add(viewModel.magneticField);
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_model != null) return;
+    _model = context.read<SensorViewModel>();
+    _model!.addListener(_recordReading);
+    _recordReading();
+  }
+
+  double _strengthFor(double deviation) => deviation < _minDetectionThreshold
+      ? 0.0
+      : math.min(
+          100.0,
+          ((deviation - _minDetectionThreshold) / (_sensitivity / 10)) * 100,
+        );
+
+  void _recordReading() {
+    final model = _model!;
+    if (!model.isSensorAvailable('magnetic')) {
+      _beepTimer?.cancel();
+      _lastDetectionStrength = -1;
+      return;
+    }
+    final version = model.sampleVersion('magnetic');
+    if (version == _lastSample) return;
+    _lastSample = version;
+    final magnitude = model.magneticField;
+    if (_isCollectingCalibration) {
+      // Ten distinct 5 Hz readings, not ten copies of a displayed value.
+      _calibrationSamples.add(magnitude);
+      if (_calibrationSamples.length >= 10) {
+        _calibrationSamples.sort();
+        _calibrate(_calibrationSamples[_calibrationSamples.length ~/ 2]);
       }
+      return;
     }
-
-    if (mounted && _calibrationSamples.isNotEmpty) {
-      // Use median of samples as baseline (more robust against outliers)
-      _calibrationSamples.sort();
-      final median = _calibrationSamples[_calibrationSamples.length ~/ 2];
-      _calibrate(median);
-    }
+    if (!_isCalibrated) return;
+    _smoothedMagnitude =
+        _smoothedMagnitude * (1 - _smoothingFactor) +
+        magnitude * _smoothingFactor;
+    _deviation = (_smoothedMagnitude - _baselineMagnitude).abs();
+    _detectionStrength = _strengthFor(_deviation);
+    _updateHistory(_deviation);
+    _updateBeepFrequency(_detectionStrength);
   }
 
   void _calibrate(double currentMagnitude) {
@@ -77,13 +120,11 @@ class _MetalDetectorScreenState extends State<MetalDetectorScreen> {
       _baselineMagnitude = currentMagnitude;
       _smoothedMagnitude = currentMagnitude;
       _isCalibrated = true;
+      _isCollectingCalibration = false;
       _maxRecorded = 0.0;
       _history.clear();
       _calibrationSamples.clear();
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Calibrated to current environment')),
-    );
   }
 
   void _resetCalibration() {
@@ -94,8 +135,11 @@ class _MetalDetectorScreenState extends State<MetalDetectorScreen> {
       _maxRecorded = 0.0;
       _history.clear();
       _calibrationSamples.clear();
-      _lowDetectionCount = 0;
+      _isCollectingCalibration = false;
+      _deviation = _detectionStrength = 0;
     });
+    _beepTimer?.cancel();
+    _lastDetectionStrength = -1;
   }
 
   void _updateHistory(double value) {
@@ -160,6 +204,7 @@ class _MetalDetectorScreenState extends State<MetalDetectorScreen> {
 
   @override
   void dispose() {
+    _model?.removeListener(_recordReading);
     _beepTimer?.cancel();
     _audioPlayer.dispose();
     super.dispose();
@@ -172,7 +217,7 @@ class _MetalDetectorScreenState extends State<MetalDetectorScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Metal Detector'),
+        title: const Text('Magnetic Field'),
         actions: [
           IconButton(
             icon: const Icon(Icons.my_location),
@@ -189,53 +234,19 @@ class _MetalDetectorScreenState extends State<MetalDetectorScreen> {
       ),
       body: Consumer<SensorViewModel>(
         builder: (context, viewModel, _) {
-          // Get magnetic field magnitude from viewModel
-          final magnitude = viewModel.magneticField;
-
-          // Apply exponential smoothing to reduce noise from hand movement
-          if (_isCalibrated) {
-            _smoothedMagnitude = _smoothedMagnitude * (1 - _smoothingFactor) + magnitude * _smoothingFactor;
-          } else {
-            _smoothedMagnitude = magnitude;
+          if (!viewModel.isSensorAvailable('magnetic')) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text(
+                  'Magnetic sensor unavailable. Waiting for a reading.',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            );
           }
-
-          // Calculate deviation from baseline using smoothed value
-          final deviation = _isCalibrated
-              ? (_smoothedMagnitude - _baselineMagnitude).abs()
-              : 0.0;
-
-          // Calculate detection strength (0-100 scale)
-          // Only register detection if deviation exceeds minimum threshold
-          // Sensitivity range: 10-200 maps to detection ranges
-          // sensitivity=50 → detect changes above ~5µT as significant
-          // sensitivity=200 → detect changes above ~20µT as significant
-          // sensitivity=10 → detect changes above ~1µT as significant (very sensitive)
-          final detectionStrength = _isCalibrated
-              ? (deviation < _minDetectionThreshold
-                  ? 0.0
-                  : math.min(100.0, ((deviation - _minDetectionThreshold) / (_sensitivity / 10)) * 100))
-              : 0.0;
-
-          // Auto-adjust baseline if readings are consistently low (no metal nearby)
-          if (_isCalibrated && detectionStrength < 5.0) {
-            _lowDetectionCount++;
-            if (_lowDetectionCount > 30) {
-              // After 30 consecutive low readings (~3 seconds), slowly adjust baseline
-              _baselineMagnitude = _baselineMagnitude * 0.95 + _smoothedMagnitude * 0.05;
-            }
-          } else {
-            _lowDetectionCount = 0;
-          }
-
-          // Update history and audio feedback after build completes
-          if (_isCalibrated) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) {
-                _updateHistory(deviation);
-                _updateBeepFrequency(detectionStrength);
-              }
-            });
-          }
+          final deviation = _deviation;
+          final detectionStrength = _detectionStrength;
 
           // Determine detection level
           final detectionLevel = _getDetectionLevel(detectionStrength);
@@ -290,7 +301,9 @@ class _MetalDetectorScreenState extends State<MetalDetectorScreen> {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          'Tap calibrate icon to start detection',
+                          _isCollectingCalibration
+                              ? 'Collecting magnetic readings...'
+                              : 'Tap calibrate to start detection',
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: colorScheme.onErrorContainer,
                           ),
@@ -369,7 +382,9 @@ class _MetalDetectorScreenState extends State<MetalDetectorScreen> {
                         Row(
                           children: [
                             Icon(
-                              _audioEnabled ? Icons.volume_up : Icons.volume_off,
+                              _audioEnabled
+                                  ? Icons.volume_up
+                                  : Icons.volume_off,
                               color: colorScheme.primary,
                             ),
                             const SizedBox(width: 12),
@@ -378,15 +393,16 @@ class _MetalDetectorScreenState extends State<MetalDetectorScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Haptic Feedback',
-                                    style: theme.textTheme.titleMedium?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                    'Sound and vibration',
+                                    style: theme.textTheme.titleMedium
+                                        ?.copyWith(fontWeight: FontWeight.bold),
                                   ),
                                   Text(
                                     'Vibration frequency increases near metal',
                                     style: theme.textTheme.bodySmall?.copyWith(
-                                      color: colorScheme.onSurface.withValues(alpha: 0.6),
+                                      color: colorScheme.onSurface.withValues(
+                                        alpha: 0.6,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -401,6 +417,8 @@ class _MetalDetectorScreenState extends State<MetalDetectorScreen> {
                                     _beepTimer?.cancel();
                                   }
                                 });
+                                _lastDetectionStrength = -1;
+                                _updateBeepFrequency(_detectionStrength);
                               },
                             ),
                           ],
@@ -489,14 +507,18 @@ class _MetalDetectorScreenState extends State<MetalDetectorScreen> {
                           max: 200,
                           divisions: 38,
                           onChanged: (value) {
-                            setState(() => _sensitivity = value);
+                            setState(() {
+                              _sensitivity = value;
+                              _detectionStrength = _strengthFor(_deviation);
+                            });
+                            _updateBeepFrequency(_detectionStrength);
                           },
                         ),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              'Less Sensitive',
+                              'More Sensitive',
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: colorScheme.onSurface.withValues(
                                   alpha: 0.6,
@@ -504,7 +526,7 @@ class _MetalDetectorScreenState extends State<MetalDetectorScreen> {
                               ),
                             ),
                             Text(
-                              'More Sensitive',
+                              'Less Sensitive',
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: colorScheme.onSurface.withValues(
                                   alpha: 0.6,
@@ -821,6 +843,6 @@ class HistoryGraphPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(HistoryGraphPainter oldDelegate) {
-    return oldDelegate.data != data || oldDelegate.maxValue != maxValue;
+    return true;
   }
 }

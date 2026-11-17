@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 
@@ -27,6 +28,8 @@ class OrientationService {
 
   double _accelX = 0, _accelY = 0, _accelZ = 9.8;
   double _magX = 0, _magY = 0, _magZ = 0;
+  bool _hasAcceleration = false;
+  bool _hasMagneticField = false;
 
   // Hard-iron calibration: min/max bounds collected while calibrating, and the
   // resulting bias subtracted from every magnetometer sample afterwards.
@@ -92,9 +95,12 @@ class OrientationService {
   }
 
   void _start() {
+    _hasAcceleration = false;
+    _hasMagneticField = false;
     _accelSubscription =
         accelerometerEventStream(samplingPeriod: _samplingPeriod).listen(
           (event) {
+            _hasAcceleration = true;
             _accelX = event.x;
             _accelY = event.y;
             _accelZ = event.z;
@@ -115,6 +121,8 @@ class OrientationService {
           },
           onError: (error) {
             debugPrint('Accelerometer error: $error');
+            _hasAcceleration = false;
+            _controller.addError(error);
           },
         );
 
@@ -122,6 +130,7 @@ class OrientationService {
     _magnetSubscription =
         magnetometerEventStream(samplingPeriod: _samplingPeriod).listen(
           (event) {
+            _hasMagneticField = true;
             _magX = event.x;
             _magY = event.y;
             _magZ = event.z;
@@ -137,6 +146,8 @@ class OrientationService {
           },
           onError: (error) {
             debugPrint('Magnetometer error: $error');
+            _hasMagneticField = false;
+            if (_hasAcceleration) _controller.add(_calculateOrientation());
           },
         );
   }
@@ -168,7 +179,7 @@ class OrientationService {
     return OrientationData(
       pitch: pitch, // Keep in radians for spirit level
       roll: roll, // Keep in radians for spirit level
-      azimuth: azimuth % 360, // Normalized to 0-360
+      azimuth: _hasMagneticField ? azimuth % 360 : null,
     );
   }
 
@@ -189,7 +200,7 @@ class OrientationService {
 class OrientationData {
   final double pitch; // Radians for spirit level
   final double roll; // Radians for spirit level
-  final double azimuth; // Degrees (0 to 360), magnetic heading
+  final double? azimuth; // Null until a valid magnetic reading exists.
 
   OrientationData({
     required this.pitch,

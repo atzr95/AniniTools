@@ -1,6 +1,9 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
+
 import '../../viewmodels/sensor_viewmodel.dart';
 
 /// Sensor screen - displays all available sensors with expandable cards
@@ -51,68 +54,86 @@ class _SensorScreenContent extends StatelessWidget {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              Text('Tools', style: theme.textTheme.titleLarge),
+              const SizedBox(height: 8),
+              _buildTools(context),
+              const SizedBox(height: 20),
+              Text('Live sensors', style: theme.textTheme.titleLarge),
+              const SizedBox(height: 8),
               // Every card is wrapped in Builder so the ListView builds it lazily:
               // off-screen cards skip their build work on each 200 ms notify.
 
               // Battery Card (always expanded, no graph)
-              Builder(builder: (context) => _buildBatteryCard(context, viewModel)),
+              Builder(
+                builder: (context) => _buildBatteryCard(context, viewModel),
+              ),
               const SizedBox(height: 12),
 
               // Magnetic Field Card
               if (viewModel.isSensorAvailable('magnetic')) ...[
-                Builder(builder: (context) => _buildSensorCard(
-                  context,
-                  viewModel,
-                  sensorName: 'magnetic',
-                  title: 'Magnetic Field',
-                  icon: Icons.explore,
-                  value: '${viewModel.magneticField.toStringAsFixed(1)} µT',
-                  hasGraph: true,
-                )),
+                Builder(
+                  builder: (context) => _buildSensorCard(
+                    context,
+                    viewModel,
+                    sensorName: 'magnetic',
+                    title: 'Magnetic Field',
+                    icon: Icons.explore,
+                    value: '${viewModel.magneticField.toStringAsFixed(1)} µT',
+                    hasGraph: true,
+                  ),
+                ),
                 const SizedBox(height: 12),
               ],
 
-              // Sound permission prompt (only when user has denied microphone)
-              if (!viewModel.isSensorAvailable('sound') &&
-                  viewModel.soundPermissionDenied) ...[
-                Builder(builder: (context) => _buildPermissionCard(
-                  context,
-                  title: 'Microphone access needed',
-                  description:
-                      'Enable microphone access to use Sound Level, Pitch detection, and the Decibel Meter.',
-                  icon: Icons.mic_off,
-                  actionLabel: 'Enable microphone',
-                  onAction: () => viewModel.retrySoundMonitoring(),
-                )),
+              // Protected sensors start only when the user asks for them.
+              if (!viewModel.isSensorAvailable('sound')) ...[
+                Builder(
+                  builder: (context) => _buildPermissionCard(
+                    context,
+                    title: 'Microphone level and pitch',
+                    description: viewModel.soundStatus,
+                    icon: Icons.mic_off,
+                    actionLabel: 'Enable microphone',
+                    onAction: viewModel.isRequestingSound
+                        ? null
+                        : () => viewModel.retrySoundMonitoring(),
+                    onSettings: () => viewModel.openAppSettings(),
+                  ),
+                ),
                 const SizedBox(height: 12),
               ],
 
               // Sound (Decibel) Card
               if (viewModel.isSensorAvailable('sound')) ...[
-                Builder(builder: (context) => _buildSensorCard(
-                  context,
-                  viewModel,
-                  sensorName: 'decibel',
-                  title: 'Sound Level',
-                  icon: Icons.graphic_eq,
-                  value: '${viewModel.decibel.toStringAsFixed(1)} dB',
-                  hasGraph: true,
-                )),
+                Builder(
+                  builder: (context) => _buildSensorCard(
+                    context,
+                    viewModel,
+                    sensorName: 'decibel',
+                    title: 'Microphone level',
+                    icon: Icons.graphic_eq,
+                    value:
+                        '${viewModel.decibel.toStringAsFixed(1)} dBFS (signal level)',
+                    hasGraph: true,
+                  ),
+                ),
                 const SizedBox(height: 12),
               ],
 
               // Pitch Card
               if (viewModel.isSensorAvailable('sound')) ...[
-                Builder(builder: (context) => _buildSensorCard(
-                  context,
-                  viewModel,
-                  sensorName: 'pitch',
-                  title: 'Pitch',
-                  icon: Icons.music_note,
-                  value:
-                      '${viewModel.pitchFrequency.toStringAsFixed(1)} Hz\n${viewModel.pitchNote}',
-                  hasGraph: true,
-                )),
+                Builder(
+                  builder: (context) => _buildSensorCard(
+                    context,
+                    viewModel,
+                    sensorName: 'pitch',
+                    title: 'Pitch',
+                    icon: Icons.music_note,
+                    value:
+                        '${viewModel.pitchNote} · ${viewModel.pitchFrequency.toStringAsFixed(1)} Hz',
+                    hasGraph: true,
+                  ),
+                ),
                 const SizedBox(height: 12),
               ],
 
@@ -123,146 +144,108 @@ class _SensorScreenContent extends StatelessWidget {
 
               // Linear Acceleration Card
               if (viewModel.isSensorAvailable('accelerometer')) ...[
-                Builder(builder: (context) => _buildSensorCard(
-                  context,
-                  viewModel,
-                  sensorName: 'accelerometer',
-                  title: 'Acceleration',
-                  icon: Icons.vibration,
-                  value:
-                      'X: ${viewModel.accelX.toStringAsFixed(2)}\n'
-                      'Y: ${viewModel.accelY.toStringAsFixed(2)}\n'
-                      'Z: ${viewModel.accelZ.toStringAsFixed(2)}\n'
-                      'Mag: ${viewModel.accelMagnitude.toStringAsFixed(2)} m/s²',
-                  hasGraph: true,
-                )),
+                Builder(
+                  builder: (context) => _buildSensorCard(
+                    context,
+                    viewModel,
+                    sensorName: 'accelerometer',
+                    title: 'Acceleration',
+                    icon: Icons.vibration,
+                    value: viewModel.isCardExpanded('accelerometer')
+                        ? 'X: ${viewModel.accelX.toStringAsFixed(2)}\n'
+                              'Y: ${viewModel.accelY.toStringAsFixed(2)}\n'
+                              'Z: ${viewModel.accelZ.toStringAsFixed(2)}\n'
+                              'Mag: ${viewModel.accelMagnitude.toStringAsFixed(2)} m/s²'
+                        : '${viewModel.accelMagnitude.toStringAsFixed(2)} m/s²',
+                    hasGraph: true,
+                  ),
+                ),
                 const SizedBox(height: 12),
               ],
 
               // Orientation Card (with visual)
               if (viewModel.isSensorAvailable('orientation')) ...[
-                Builder(builder: (context) => _buildOrientationCard(context, viewModel)),
+                Builder(
+                  builder: (context) =>
+                      _buildOrientationCard(context, viewModel),
+                ),
                 const SizedBox(height: 12),
               ],
 
               // Gyroscope Card
               if (viewModel.isSensorAvailable('gyroscope')) ...[
-                Builder(builder: (context) => _buildSensorCard(
-                  context,
-                  viewModel,
-                  sensorName: 'gyroscope',
-                  title: 'Gyroscope',
-                  icon: Icons.rotate_right,
-                  value:
-                      'X: ${viewModel.gyroX.toStringAsFixed(3)}\n'
-                      'Y: ${viewModel.gyroY.toStringAsFixed(3)}\n'
-                      'Z: ${viewModel.gyroZ.toStringAsFixed(3)}\n'
-                      'Mag: ${viewModel.gyroMagnitude.toStringAsFixed(3)} rad/s',
-                  hasGraph: true,
-                )),
+                Builder(
+                  builder: (context) => _buildSensorCard(
+                    context,
+                    viewModel,
+                    sensorName: 'gyroscope',
+                    title: 'Gyroscope',
+                    icon: Icons.rotate_right,
+                    value: viewModel.isCardExpanded('gyroscope')
+                        ? 'X: ${viewModel.gyroX.toStringAsFixed(3)}\n'
+                              'Y: ${viewModel.gyroY.toStringAsFixed(3)}\n'
+                              'Z: ${viewModel.gyroZ.toStringAsFixed(3)}\n'
+                              'Mag: ${viewModel.gyroMagnitude.toStringAsFixed(3)} rad/s'
+                        : '${viewModel.gyroMagnitude.toStringAsFixed(3)} rad/s',
+                    hasGraph: true,
+                  ),
+                ),
                 const SizedBox(height: 12),
               ],
 
               // Proximity Card
               if (viewModel.isSensorAvailable('proximity')) ...[
-                Builder(builder: (context) => _buildProximityCard(context, viewModel)),
+                Builder(
+                  builder: (context) => _buildProximityCard(context, viewModel),
+                ),
                 const SizedBox(height: 12),
               ],
 
               // Pressure Card
               if (viewModel.isSensorAvailable('pressure')) ...[
-                Builder(builder: (context) => _buildPressureCard(context, viewModel)),
-                const SizedBox(height: 12),
-              ],
-
-              // Tools Section
-              const SizedBox(height: 24),
-              Text(
-                'Sensor Tools',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
+                Builder(
+                  builder: (context) => _buildPressureCard(context, viewModel),
                 ),
-              ),
-              const SizedBox(height: 12),
-
-              // Spirit Level Tool (requires accelerometer)
-              if (viewModel.isSensorAvailable('accelerometer')) ...[
-                Builder(builder: (context) => _buildToolCard(
-                  context,
-                  title: 'Spirit Level',
-                  icon: Icons.architecture,
-                  description:
-                      '2D bubble level for hanging pictures and checking surfaces',
-                  onTap: () => Navigator.pushNamed(context, '/spirit-level'),
-                )),
                 const SizedBox(height: 12),
-              ],
-
-              // Metal Detector Tool (requires magnetometer)
-              if (viewModel.isSensorAvailable('magnetic')) ...[
-                Builder(builder: (context) => _buildToolCard(
-                  context,
-                  title: 'Metal Detector',
-                  icon: Icons.search,
-                  description: 'Find studs in walls and locate metal objects',
-                  onTap: () => Navigator.pushNamed(context, '/metal-detector'),
-                )),
-                const SizedBox(height: 12),
-              ],
-
-              // Decibel Meter Tool (requires sound)
-              if (viewModel.isSensorAvailable('sound')) ...[
-                Builder(builder: (context) => _buildToolCard(
-                  context,
-                  title: 'Decibel Meter',
-                  icon: Icons.graphic_eq,
-                  description: 'Measure sound levels with safety warnings',
-                  onTap: () => Navigator.pushNamed(context, '/decibel-meter'),
-                )),
-                const SizedBox(height: 12),
-              ],
-
-              // Altitude Calculator Tool (requires pressure + GPS)
-              if (viewModel.isSensorAvailable('pressure') &&
-                  viewModel.isSensorAvailable('gps')) ...[
-                Builder(builder: (context) => _buildToolCard(
-                  context,
-                  title: 'Altitude Calculator',
-                  icon: Icons.terrain,
-                  description: 'Track elevation and predict weather changes',
-                  onTap: () =>
-                      Navigator.pushNamed(context, '/altitude-calculator'),
-                )),
-                const SizedBox(height: 12),
-              ],
-
-              // Vibration Analyzer Tool (requires accelerometer)
-              if (viewModel.isSensorAvailable('accelerometer')) ...[
-                Builder(builder: (context) => _buildToolCard(
-                  context,
-                  title: 'Vibration Analyzer',
-                  icon: Icons.vibration,
-                  description: 'Analyze vibrations for diagnostics and safety',
-                  onTap: () =>
-                      Navigator.pushNamed(context, '/vibration-analyzer'),
-                )),
-                const SizedBox(height: 12),
-              ],
-
-              // Acceleration Meter Tool (requires accelerometer)
-              if (viewModel.isSensorAvailable('accelerometer')) ...[
-                Builder(builder: (context) => _buildToolCard(
-                  context,
-                  title: 'Acceleration Meter',
-                  icon: Icons.speed,
-                  description: 'Measure vehicle acceleration and speed changes',
-                  onTap: () => Navigator.pushNamed(context, '/g-force-meter'),
-                )),
               ],
             ],
           );
         },
       ),
+    );
+  }
+
+  Widget _buildTools(BuildContext context) {
+    const tools = [
+      ('Spirit Level', Icons.architecture, '/spirit-level'),
+      ('Magnetic Field', Icons.search, '/metal-detector'),
+      ('Microphone Level', Icons.graphic_eq, '/decibel-meter'),
+      ('Altitude Calculator', Icons.terrain, '/altitude-calculator'),
+      ('Vibration Analyzer', Icons.vibration, '/vibration-analyzer'),
+      ('Acceleration Meter', Icons.speed, '/g-force-meter'),
+    ];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = (constraints.maxWidth / 200).floor().clamp(2, 4);
+        final width = (constraints.maxWidth - 8 * (columns - 1)) / columns;
+        return Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: tools
+              .map(
+                (tool) => SizedBox(
+                  width: width,
+                  child: _buildToolCard(
+                    context,
+                    title: tool.$1,
+                    icon: tool.$2,
+                    onTap: () => Navigator.pushNamed(context, tool.$3),
+                  ),
+                ),
+              )
+              .toList(),
+        );
+      },
     );
   }
 
@@ -306,7 +289,9 @@ class _SensorScreenContent extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${viewModel.batteryLevel}% - ${viewModel.batteryStatus}',
+                        viewModel.isSensorAvailable('battery')
+                            ? '${viewModel.batteryLevel}% - ${viewModel.batteryStatus}'
+                            : 'Unavailable',
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: colorScheme.onSurface.withValues(alpha: 0.7),
                         ),
@@ -486,40 +471,53 @@ class _SensorScreenContent extends StatelessWidget {
                   _buildCoordinateRow(
                     context,
                     'Latitude',
-                    '${viewModel.latitude.toStringAsFixed(6)}°',
+                    viewModel.isSensorAvailable('gps')
+                        ? '${viewModel.latitude.toStringAsFixed(6)}°'
+                        : '—',
                   ),
                   const SizedBox(height: 8),
                   _buildCoordinateRow(
                     context,
                     'Longitude',
-                    '${viewModel.longitude.toStringAsFixed(6)}°',
+                    viewModel.isSensorAvailable('gps')
+                        ? '${viewModel.longitude.toStringAsFixed(6)}°'
+                        : '—',
                   ),
                   const SizedBox(height: 8),
                   _buildCoordinateRow(
                     context,
                     'Altitude',
-                    '${viewModel.altitude.toStringAsFixed(1)} m',
+                    viewModel.isSensorAvailable('gps')
+                        ? '${viewModel.altitude.toStringAsFixed(1)} m'
+                        : '—',
                   ),
-                  if (!viewModel.hasLocationPermission) ...[
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: FilledButton.icon(
-                            onPressed: () => viewModel.retryLocationPermission(),
-                            icon: const Icon(Icons.gps_fixed),
-                            label: const Text('Grant permission'),
-                          ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      FilledButton.icon(
+                        onPressed: viewModel.isLoadingGPS
+                            ? null
+                            : viewModel.retryLocationPermission,
+                        icon: const Icon(Icons.gps_fixed),
+                        label: Text(
+                          viewModel.hasLocationPermission
+                              ? 'Retry location'
+                              : 'Enable location',
                         ),
-                        const SizedBox(width: 8),
-                        OutlinedButton.icon(
-                          onPressed: () => viewModel.openLocationSettings(),
-                          icon: const Icon(Icons.settings),
-                          label: const Text('Settings'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: viewModel.openAppSettings,
+                        icon: const Icon(Icons.settings),
+                        label: const Text('App settings'),
+                      ),
+                      if (viewModel.gpsStatus == 'Location services OFF')
+                        TextButton(
+                          onPressed: viewModel.openLocationSettings,
+                          child: const Text('Location settings'),
                         ),
-                      ],
-                    ),
-                  ],
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -572,8 +570,8 @@ class _SensorScreenContent extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Pitch: ${viewModel.pitch.toStringAsFixed(1)}°\n'
-                          'Roll: ${viewModel.roll.toStringAsFixed(1)}°',
+                          'Pitch: ${(viewModel.pitch * 180 / math.pi).toStringAsFixed(1)}°\n'
+                          'Roll: ${(viewModel.roll * 180 / math.pi).toStringAsFixed(1)}°',
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: colorScheme.onSurface.withValues(alpha: 0.7),
                             fontFamily: 'monospace',
@@ -737,13 +735,14 @@ class _SensorScreenContent extends StatelessWidget {
     required String description,
     required IconData icon,
     required String actionLabel,
-    required VoidCallback onAction,
+    required VoidCallback? onAction,
+    required VoidCallback onSettings,
   }) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
+    // Neutral colors: asking for a permission is not an error.
     return Card(
-      color: colorScheme.errorContainer.withValues(alpha: 0.4),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
@@ -751,10 +750,10 @@ class _SensorScreenContent extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: colorScheme.error.withValues(alpha: 0.15),
+                color: colorScheme.primaryContainer,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(icon, color: colorScheme.error, size: 28),
+              child: Icon(icon, color: colorScheme.primary, size: 28),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -765,25 +764,24 @@ class _SensorScreenContent extends StatelessWidget {
                     title,
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: colorScheme.onErrorContainer,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     description,
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onErrorContainer.withValues(alpha: 0.8),
+                      color: colorScheme.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(height: 12),
                   FilledButton.icon(
                     onPressed: onAction,
-                    icon: const Icon(Icons.refresh, size: 18),
+                    icon: const Icon(Icons.mic, size: 18),
                     label: Text(actionLabel),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: colorScheme.error,
-                      foregroundColor: colorScheme.onError,
-                    ),
+                  ),
+                  TextButton(
+                    onPressed: onSettings,
+                    child: const Text('Open app settings'),
                   ),
                 ],
               ),
@@ -854,16 +852,16 @@ class _SensorScreenContent extends StatelessWidget {
 
     switch (sensorName) {
       case 'decibel':
-        // Decibels: 0-120 dB fixed scale
-        safeMinY = 0;
-        safeMaxY = 120;
-        safeInterval = 30;
+        // Digital microphone reference, with 0 as the maximum signal.
+        safeMinY = -160;
+        safeMaxY = 0;
+        safeInterval = 40;
         break;
       case 'pitch':
-        // Pitch: 0-2000 Hz (typical voice/music range)
+        // Pitch: 0-4000 Hz (voice/music range).
         safeMinY = 0;
-        safeMaxY = 2000;
-        safeInterval = 500;
+        safeMaxY = 4000;
+        safeInterval = 1000;
         break;
       default:
         // Dynamic scale for other sensors with extra padding
@@ -1003,7 +1001,7 @@ class OrientationPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 3;
+    final radius = math.min(size.width / 3, size.height / 2 - 4);
 
     // Draw outer circle (fixed)
     final outerPaint = Paint()
@@ -1030,16 +1028,16 @@ class OrientationPainter extends CustomPainter {
     // Calculate bubble position from pitch and roll
     // pitch affects Y, roll affects X
     final maxOffset = radius * 0.8;
-    final bubbleX = (roll / 90) * maxOffset;
-    final bubbleY = (pitch / 90) * maxOffset;
+    final bubbleX = (roll / (math.pi / 2)) * maxOffset;
+    final bubbleY = (pitch / (math.pi / 2)) * maxOffset;
 
     // Clamp to circle
-    final distance = (bubbleX * bubbleX + bubbleY * bubbleY).abs();
-    final clampedX = distance > maxOffset * maxOffset
-        ? bubbleX * maxOffset / distance.abs()
+    final distance = math.sqrt(bubbleX * bubbleX + bubbleY * bubbleY);
+    final clampedX = distance > maxOffset
+        ? bubbleX * maxOffset / distance
         : bubbleX;
-    final clampedY = distance > maxOffset * maxOffset
-        ? bubbleY * maxOffset / distance.abs()
+    final clampedY = distance > maxOffset
+        ? bubbleY * maxOffset / distance
         : bubbleY;
 
     final bubbleCenter = Offset(center.dx + clampedX, center.dy + clampedY);
@@ -1073,7 +1071,6 @@ Widget _buildToolCard(
   BuildContext context, {
   required String title,
   required IconData icon,
-  required String description,
   required VoidCallback onTap,
 }) {
   final theme = Theme.of(context);
@@ -1083,49 +1080,17 @@ Widget _buildToolCard(
     child: InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: colorScheme.primaryContainer,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                icon,
-                color: colorScheme.onPrimaryContainer,
-                size: 28,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    description,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurface.withValues(alpha: 0.7),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(
-              Icons.arrow_forward_ios,
-              color: colorScheme.onSurface.withValues(alpha: 0.3),
-              size: 16,
-            ),
-          ],
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 64),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            children: [
+              Icon(icon, color: colorScheme.primary, size: 22),
+              const SizedBox(width: 8),
+              Expanded(child: Text(title, style: theme.textTheme.titleSmall)),
+            ],
+          ),
         ),
       ),
     ),

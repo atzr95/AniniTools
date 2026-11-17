@@ -1,6 +1,8 @@
 import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
+
 import '../services/sensors/orientation_service.dart';
 import '../services/sensors/location_service.dart';
 
@@ -20,6 +22,8 @@ class CompassViewModel extends ChangeNotifier {
   // Compass data with smoother filtering
   double _heading = 0.0; // Degrees from magnetic north (0-360)
   double _displayHeading = 0.0; // Smoothly animated heading for display
+  bool _hasHeading = false;
+  bool _hasLocationFix = false;
 
   // GPS data
   double _latitude = 0.0;
@@ -60,21 +64,42 @@ class CompassViewModel extends ChangeNotifier {
 
   // Getters
   double get heading => _displayHeading;
+  bool get hasHeading => _hasHeading;
   double get latitude => _latitude;
   double get longitude => _longitude;
   double get altitude => _altitude;
   bool get hasLocationPermission => _hasLocationPermission;
+  bool get hasLocationFix => _hasLocationFix;
   bool get isLoadingGPS => _isLoadingGPS;
   String get gpsStatus => _gpsStatus;
   double get pitch => _pitch;
   double get roll => _roll;
 
   /// Initialize compass - start sensor streams
-  Future<void> initialize() async {
-    await _requestLocationPermission();
-    if (_disposed) return;
+  Future<void> initialize({bool requestLocation = false}) async {
+    _hasLocationFix = false;
     _startSensorStreams();
     _startSmoothAnimation();
+    if (requestLocation) {
+      await _requestLocationPermission();
+    } else {
+      try {
+        final permission = await _locationService.checkPermission();
+        _hasLocationPermission =
+            permission == LocationPermission.always ||
+            permission == LocationPermission.whileInUse;
+      } catch (error) {
+        debugPrint('Location permission check failed: $error');
+      }
+    }
+    if (_disposed) return;
+    if (_hasLocationPermission) {
+      _isLoadingGPS = true;
+      _gpsStatus = 'Acquiring GPS signal...';
+      _startGPSTimeout();
+      _startGPSService();
+    }
+    notifyListeners();
   }
 
   /// Request location permission
@@ -123,34 +148,36 @@ class CompassViewModel extends ChangeNotifier {
 
   /// Start sensor streams
   void _startSensorStreams() {
-    // Always start GPS if we have permission
-    if (_hasLocationPermission) {
-      _isLoadingGPS = true;
-      _gpsStatus = 'Acquiring GPS signal...';
-      notifyListeners(); // Notify immediately to show loading state
-
-      // Start GPS service
-      _startGPSTimeout();
-      _startGPSService();
-    }
-
     // Orientation service owns the tilt-compensated heading math. Subscribing
     // starts it; the permission-retry button can call initialize() again, so
     // drop any previous subscription rather than pinning the sensor on with a
     // listener nothing will ever cancel.
     _orientationSubscription?.cancel();
-    _orientationSubscription = _orientationService.stream.listen((data) {
-      if (data.pitch != _pitch ||
-          data.roll != _roll ||
-          normalizeAngleDiff(data.azimuth - _heading).abs() > 0.05) {
+    _orientationSubscription = _orientationService.stream.listen(
+      (data) {
+        final azimuth = data.azimuth;
+        final hasHeading = azimuth != null;
+        if (data.pitch != _pitch ||
+            data.roll != _roll ||
+            hasHeading != _hasHeading ||
+            (azimuth != null &&
+                normalizeAngleDiff(azimuth - _heading).abs() > 0.05)) {
+          _sensorDataChanged = true;
+        }
+        _hasHeading = hasHeading;
+        _pitch = data.pitch;
+        _roll = data.roll;
+        // Apply enhanced smoothing with wrap-around handling
+        if (azimuth != null) {
+          _heading = _applySmoothing(_heading, azimuth, _headingAlpha);
+        }
+        // Don't call notifyListeners() here - the display timer handles it
+      },
+      onError: (Object error) {
+        _hasHeading = false;
         _sensorDataChanged = true;
-      }
-      _pitch = data.pitch;
-      _roll = data.roll;
-      // Apply enhanced smoothing with wrap-around handling
-      _heading = _applySmoothing(_heading, data.azimuth, _headingAlpha);
-      // Don't call notifyListeners() here - the display timer handles it
-    });
+      },
+    );
   }
 
   /// Start GPS service
@@ -184,6 +211,7 @@ class CompassViewModel extends ChangeNotifier {
       if (_disposed) return;
       debugPrint('🗺️ Got position: $position');
       if (position != null) {
+        _hasLocationFix = true;
         _latitude = position.latitude;
         _longitude = position.longitude;
         _altitude = position.altitude;
@@ -217,6 +245,7 @@ class CompassViewModel extends ChangeNotifier {
     _locationSubscription?.cancel();
     _locationSubscription = _locationService.stream.listen(
       (position) {
+        _hasLocationFix = true;
         _latitude = position.latitude;
         _longitude = position.longitude;
         _altitude = position.altitude;
@@ -238,8 +267,10 @@ class CompassViewModel extends ChangeNotifier {
         // No need to call notifyListeners() here as timer handles it
       },
       onError: (error) {
+        _hasLocationFix = false;
+        _sensorDataChanged = true;
         _isLoadingGPS = false;
-        _gpsStatus = 'GPS Error: $error';
+        _gpsStatus = 'Location unavailable. Try again.';
         _cancelGPSTimeout();
         debugPrint('GPS stream error: $error');
       },

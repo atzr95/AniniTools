@@ -1,6 +1,8 @@
 import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:sensors_plus/sensors_plus.dart';
+
 import 'vector3_reading.dart';
 
 /// Service for monitoring gyroscope (angular velocity, rad/s)
@@ -31,6 +33,7 @@ class GyroscopeService {
           },
           onError: (error) {
             debugPrint('Gyroscope error: $error');
+            _controller.addError(error);
           },
         );
   }

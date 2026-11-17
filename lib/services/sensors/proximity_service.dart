@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:proximity_sensor/proximity_sensor.dart';
 
@@ -27,10 +28,12 @@ class ProximityService {
         },
         onError: (error) {
           debugPrint('Proximity sensor error: $error');
+          _controller.addError(error);
         },
       );
     } catch (e) {
       debugPrint('Error starting proximity sensor: $e');
+      _controller.addError(e);
     }
   }
 

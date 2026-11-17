@@ -1,5 +1,7 @@
 import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+
 import '../../data/bitmap_fonts.dart';
 import '../../models/text_style_config.dart';
 import 'gradient_color.dart';
@@ -20,7 +22,8 @@ class PixelRetroPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (text.isEmpty) return;
+    final glyphs = BitmapFonts.glyphs(text);
+    if (glyphs.isEmpty) return;
 
     final pixelSize = config.pixelSize.pixels;
 
@@ -31,7 +34,7 @@ class PixelRetroPainter extends CustomPainter {
 
     // Calculate total text width in pixels
     final textWidthPixels =
-        text.length * charWidth + (text.length - 1) * charSpacing;
+        glyphs.length * charWidth + (glyphs.length - 1) * charSpacing;
     final textHeightPixels = charHeight;
 
     // Calculate pixel dimensions
@@ -67,8 +70,8 @@ class PixelRetroPainter extends CustomPainter {
 
     // Draw each character
     double charStartX = startX;
-    for (int charIndex = 0; charIndex < text.length; charIndex++) {
-      final char = text[charIndex];
+    for (int charIndex = 0; charIndex < glyphs.length; charIndex++) {
+      final char = glyphs[charIndex];
 
       for (int row = 0; row < charHeight; row++) {
         for (int col = 0; col < charWidth; col++) {
@@ -134,10 +137,7 @@ class PixelRetroPainter extends CustomPainter {
       0,
       0,
     ).withValues(alpha: 0.7);
-    canvas.drawRect(
-      Rect.fromLTWH(x - shift, y, size, size),
-      paint,
-    );
+    canvas.drawRect(Rect.fromLTWH(x - shift, y, size, size), paint);
 
     // Green channel (center)
     paint.color = Color.fromARGB(
@@ -146,10 +146,7 @@ class PixelRetroPainter extends CustomPainter {
       255,
       0,
     ).withValues(alpha: 0.7);
-    canvas.drawRect(
-      Rect.fromLTWH(x, y, size, size),
-      paint,
-    );
+    canvas.drawRect(Rect.fromLTWH(x, y, size, size), paint);
 
     // Blue channel (shifted right)
     paint.color = Color.fromARGB(
@@ -158,17 +155,11 @@ class PixelRetroPainter extends CustomPainter {
       0,
       255,
     ).withValues(alpha: 0.7);
-    canvas.drawRect(
-      Rect.fromLTWH(x + shift, y, size, size),
-      paint,
-    );
+    canvas.drawRect(Rect.fromLTWH(x + shift, y, size, size), paint);
 
     // Main color overlay
     paint.color = color.withValues(alpha: 0.5);
-    canvas.drawRect(
-      Rect.fromLTWH(x, y, size, size),
-      paint,
-    );
+    canvas.drawRect(Rect.fromLTWH(x, y, size, size), paint);
   }
 
   void _drawScanlines(Canvas canvas, Size size) {

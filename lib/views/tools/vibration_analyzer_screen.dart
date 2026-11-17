@@ -1,7 +1,8 @@
-import 'dart:async';
 import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../../viewmodels/sensor_viewmodel.dart';
 import '../../widgets/measurement_card.dart';
 import '../../utils/capped_list.dart';
@@ -32,27 +33,38 @@ class _VibrationAnalyzerScreenState extends State<VibrationAnalyzerScreen> {
     'Very High (100+ Hz)': 0,
   };
 
-  Timer? _analysisTimer;
+  SensorViewModel? _model;
+  int _lastSample = 0;
 
   @override
-  void initState() {
-    super.initState();
-    _startAnalysisTimer();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_model != null) return;
+    _model = context.read<SensorViewModel>();
+    _model!.addListener(_recordReading);
+    _recordReading();
   }
 
   @override
   void dispose() {
-    _analysisTimer?.cancel();
+    _model?.removeListener(_recordReading);
     super.dispose();
   }
 
-  void _startAnalysisTimer() {
-    // Update UI at 20 Hz
-    _analysisTimer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
-      if (mounted) {
-        setState(() {}); // Trigger rebuild for real-time updates
-      }
-    });
+  void _recordReading() {
+    final model = _model!;
+    final version = model.sampleVersion('linearAcceleration');
+    if (!model.isSensorAvailable('linearAcceleration') ||
+        version == _lastSample) {
+      return;
+    }
+    _lastSample = version;
+    final vibration = model.linearAccelMagnitude;
+    _updateMeasurements(
+      vibration,
+      _estimateFrequency(vibration),
+      model.linearAccelPeakMagnitude,
+    );
   }
 
   void _resetMeasurements() {
@@ -65,12 +77,11 @@ class _VibrationAnalyzerScreenState extends State<VibrationAnalyzerScreen> {
     });
   }
 
-  void _updateMeasurements(double vibration, double frequency) {
+  /// [peak] is the highest reading since the last update, which can be
+  /// above [vibration] when a short bump fell between two updates.
+  void _updateMeasurements(double vibration, double frequency, double peak) {
     setState(() {
-      // Update peak
-      if (vibration > _peakVibration) {
-        _peakVibration = vibration;
-      }
+      if (peak > _peakVibration) _peakVibration = peak;
 
       // Update average
       _sampleCount++;
@@ -90,7 +101,8 @@ class _VibrationAnalyzerScreenState extends State<VibrationAnalyzerScreen> {
       _frequencyBuckets['Very Low (0-5 Hz)'] =
           _frequencyBuckets['Very Low (0-5 Hz)']! + 1;
     } else if (frequency < 20) {
-      _frequencyBuckets['Low (5-20 Hz)'] = _frequencyBuckets['Low (5-20 Hz)']! + 1;
+      _frequencyBuckets['Low (5-20 Hz)'] =
+          _frequencyBuckets['Low (5-20 Hz)']! + 1;
     } else if (frequency < 50) {
       _frequencyBuckets['Medium (20-50 Hz)'] =
           _frequencyBuckets['Medium (20-50 Hz)']! + 1;
@@ -121,29 +133,19 @@ class _VibrationAnalyzerScreenState extends State<VibrationAnalyzerScreen> {
       ),
       body: Consumer<SensorViewModel>(
         builder: (context, viewModel, _) {
-          // Calculate vibration magnitude from acceleration
-          final accelX = viewModel.accelX;
-          final accelY = viewModel.accelY;
-          final accelZ = viewModel.accelZ;
-
-          // Remove gravity component (9.8 m/s²) and calculate magnitude
-          final vibration = math.sqrt(
-            accelX * accelX + accelY * accelY + (accelZ - 9.8) * (accelZ - 9.8),
-          );
-
-          // Estimate frequency (simplified - based on change rate)
-          // In a real implementation, you'd use FFT
-          final frequency = _estimateFrequency(vibration);
-
-          // Update measurements continuously after build completes
-          if (vibration > 0.1) {
-            // Threshold to ignore noise
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) {
-                _updateMeasurements(vibration, frequency);
-              }
-            });
+          if (!viewModel.isSensorAvailable('linearAcceleration')) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text(
+                  'Motion sensor unavailable. Waiting for a reading.',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            );
           }
+          final vibration = viewModel.linearAccelMagnitude;
+          final frequency = _estimateFrequency(vibration);
 
           // Determine vibration level
           final vibrationLevel = _getVibrationLevel(vibration);
@@ -184,15 +186,16 @@ class _VibrationAnalyzerScreenState extends State<VibrationAnalyzerScreen> {
                   decoration: BoxDecoration(
                     color: vibrationLevel.color.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: vibrationLevel.color,
-                      width: 2,
-                    ),
+                    border: Border.all(color: vibrationLevel.color, width: 2),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(vibrationLevel.icon, color: vibrationLevel.color, size: 28),
+                      Icon(
+                        vibrationLevel.icon,
+                        color: vibrationLevel.color,
+                        size: 28,
+                      ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
@@ -256,7 +259,7 @@ class _VibrationAnalyzerScreenState extends State<VibrationAnalyzerScreen> {
                     const SizedBox(width: 16),
                     Expanded(
                       child: MeasurementCard(
-                        label: 'Frequency',
+                        label: 'Frequency estimate',
                         value: '${frequency.toStringAsFixed(1)} Hz',
                         icon: Icons.graphic_eq,
                       ),
@@ -308,15 +311,16 @@ class _VibrationAnalyzerScreenState extends State<VibrationAnalyzerScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Frequency Distribution',
+                            'Estimated Frequency Distribution',
                             style: theme.textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                           const SizedBox(height: 16),
                           ..._frequencyBuckets.entries.map((entry) {
-                            final percentage =
-                                (_sampleCount > 0 ? (entry.value / _sampleCount) * 100 : 0.0);
+                            final percentage = (_sampleCount > 0
+                                ? (entry.value / _sampleCount) * 100
+                                : 0.0);
                             return _buildFrequencyBar(
                               context,
                               entry.key,
@@ -391,7 +395,10 @@ class _VibrationAnalyzerScreenState extends State<VibrationAnalyzerScreen> {
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.tips_and_updates, color: colorScheme.primary),
+                            Icon(
+                              Icons.tips_and_updates,
+                              color: colorScheme.primary,
+                            ),
                             const SizedBox(width: 8),
                             Text(
                               'Usage Tips',
@@ -403,8 +410,12 @@ class _VibrationAnalyzerScreenState extends State<VibrationAnalyzerScreen> {
                         ),
                         const SizedBox(height: 12),
                         _buildTipRow('Place phone firmly on vibrating surface'),
-                        _buildTipRow('Start recording before starting equipment'),
-                        _buildTipRow('Record for 10-30 seconds for best results'),
+                        _buildTipRow(
+                          'Start recording before starting equipment',
+                        ),
+                        _buildTipRow(
+                          'Record for 10-30 seconds for best results',
+                        ),
                         _buildTipRow('Compare readings to normal baseline'),
                         _buildTipRow('Look for sudden changes in patterns'),
                       ],
@@ -468,7 +479,10 @@ class _VibrationAnalyzerScreenState extends State<VibrationAnalyzerScreen> {
         children: [
           Expanded(
             flex: 2,
-            child: Text(source, style: const TextStyle(fontWeight: FontWeight.w500)),
+            child: Text(
+              source,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
           ),
           Expanded(
             child: Text(
@@ -506,6 +520,7 @@ class _VibrationAnalyzerScreenState extends State<VibrationAnalyzerScreen> {
   // this drives the "Frequency" card / distribution as a coarse indicator only.
   // Upgrade path: buffer raw accel samples and run an FFT if accuracy matters.
   double _estimateFrequency(double vibration) {
+    if (vibration < 0.1) return 0;
     if (vibration < 0.5) return 5.0;
     if (vibration < 1.0) return 15.0;
     if (vibration < 2.0) return 30.0;
@@ -530,18 +545,8 @@ class _VibrationAnalyzerScreenState extends State<VibrationAnalyzerScreen> {
 
 /// Vibration level classification
 enum VibrationLevel {
-  minimal(
-    'Minimal',
-    Icons.check_circle,
-    Colors.green,
-    'Normal operation',
-  ),
-  low(
-    'Low',
-    Icons.info_outline,
-    Colors.blue,
-    'Typical for smooth operation',
-  ),
+  minimal('Minimal', Icons.check_circle, Colors.green, 'Normal operation'),
+  low('Low', Icons.info_outline, Colors.blue, 'Typical for smooth operation'),
   moderate(
     'Moderate',
     Icons.warning_amber,
@@ -714,8 +719,9 @@ class VibrationHistoryPainter extends CustomPainter {
 
     for (int i = 0; i < data.length; i++) {
       final x = i * stepX;
-      final normalizedValue =
-          maxVibration > 0 ? (data[i] / maxVibration).clamp(0.0, 1.0) : 0.0;
+      final normalizedValue = maxVibration > 0
+          ? (data[i] / maxVibration).clamp(0.0, 1.0)
+          : 0.0;
       final y = size.height - (normalizedValue * size.height);
 
       if (i == 0) {
@@ -742,6 +748,6 @@ class VibrationHistoryPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(VibrationHistoryPainter oldDelegate) {
-    return oldDelegate.data != data;
+    return true;
   }
 }

@@ -5,6 +5,9 @@ import 'package:torch_light/torch_light.dart';
 import 'package:screen_brightness/screen_brightness.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:aninitools/widgets/painters/color_picker_painters.dart';
+import 'package:provider/provider.dart';
+import '../../models/reporting_preferences.dart';
+import '../privacy_dialog.dart';
 import 'concert_mode_screen.dart';
 
 /// Global flashlight state tracker to persist across navigation
@@ -909,9 +912,18 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
       appBar: AppBar(
         title: const Text('AniniTools'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.privacy_tip_outlined),
+            tooltip: 'Privacy & data',
+            onPressed: () => showDialog<void>(
+              context: context,
+              builder: (_) =>
+                  PrivacyDialog(reporting: context.read<ReportingPreferences>()),
+            ),
+          ),
           // Battery indicator
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            padding: const EdgeInsets.only(right: 16.0),
             child: Row(
               children: [
                 Icon(

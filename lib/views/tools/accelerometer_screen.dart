@@ -1,7 +1,8 @@
-import 'dart:async';
 import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../../viewmodels/sensor_viewmodel.dart';
 import '../../utils/capped_list.dart';
 
@@ -36,29 +37,24 @@ class _AccelerometerScreenState extends State<AccelerometerScreen> {
   double _smoothedAccel = 0.0;
   static const double _smoothingFactor = 0.3;
 
-  double _lastAccelY = 0.0;
-  double _lastGpsSpeedKmh = 0.0;
+  SensorViewModel? _model;
+  int _lastAccelSample = 0, _lastSpeedSample = 0;
 
   // Threshold to filter out noise (m/s²)
   static const double _noiseThreshold = 0.3;
 
-  // Timer for updating measurements
-  Timer? _updateTimer;
-
   @override
-  void initState() {
-    super.initState();
-    // Update at 10 FPS - sufficient for display and graph updates
-    _updateTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
-      if (mounted) {
-        _updateMeasurements();
-      }
-    });
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_model != null) return;
+    _model = context.read<SensorViewModel>();
+    _model!.addListener(_updateMeasurements);
+    _updateMeasurements();
   }
 
   @override
   void dispose() {
-    _updateTimer?.cancel();
+    _model?.removeListener(_updateMeasurements);
     super.dispose();
   }
 
@@ -74,34 +70,40 @@ class _AccelerometerScreenState extends State<AccelerometerScreen> {
   }
 
   void _updateMeasurements() {
-    final accelY = _lastAccelY;
-    final speedKmh = _lastGpsSpeedKmh;
-
-    // Filter noise from accelerometer
-    final linearAccel = accelY.abs() > _noiseThreshold ? accelY : 0.0;
-
-    // Smooth the acceleration for display
-    _smoothedAccel = _smoothedAccel * (1 - _smoothingFactor) + linearAccel * _smoothingFactor;
-
+    final model = _model!;
+    final accelVersion = model.sampleVersion('linearAcceleration');
+    final gpsVersion = model.sampleVersion('gps');
+    final newAcceleration =
+        model.isSensorAvailable('linearAcceleration') &&
+        accelVersion != _lastAccelSample;
+    final newSpeed = model.gpsSpeedFresh && gpsVersion != _lastSpeedSample;
+    if (!newAcceleration && !newSpeed) return;
     setState(() {
-      // Update peak acceleration
-      if (linearAccel > _peakAcceleration) {
-        _peakAcceleration = linearAccel;
+      if (newAcceleration) {
+        _lastAccelSample = accelVersion;
+        final linearAccel = model.linearAccelY.abs() > _noiseThreshold
+            ? model.linearAccelY
+            : 0.0;
+        _smoothedAccel =
+            _smoothedAccel * (1 - _smoothingFactor) +
+            linearAccel * _smoothingFactor;
+        // Peaks use the window extremes: short bumps fall between updates.
+        final yMax = model.linearAccelYMax, yMin = model.linearAccelYMin;
+        _peakAcceleration = math.max(
+          _peakAcceleration,
+          yMax > _noiseThreshold ? yMax : 0.0,
+        );
+        _peakDeceleration = math.max(
+          _peakDeceleration,
+          -yMin > _noiseThreshold ? -yMin : 0.0,
+        );
+        _accelerationHistory.pushCapped(linearAccel, _maxHistoryLength);
       }
-      if (linearAccel < 0 && linearAccel.abs() > _peakDeceleration) {
-        _peakDeceleration = linearAccel.abs();
+      if (newSpeed) {
+        _lastSpeedSample = gpsVersion;
+        _topSpeed = math.max(_topSpeed, model.gpsSpeedKmh);
+        _speedHistory.pushCapped(model.gpsSpeedKmh, _maxHistoryLength);
       }
-
-      // Update top speed from GPS
-      if (speedKmh > _topSpeed) {
-        _topSpeed = speedKmh;
-      }
-
-      // Update acceleration history
-      _accelerationHistory.pushCapped(linearAccel, _maxHistoryLength);
-
-      // Update speed history from GPS
-      _speedHistory.pushCapped(speedKmh, _maxHistoryLength);
     });
   }
 
@@ -123,19 +125,16 @@ class _AccelerometerScreenState extends State<AccelerometerScreen> {
       ),
       body: Consumer<SensorViewModel>(
         builder: (context, viewModel, child) {
-          if (!viewModel.isSensorAvailable('accelerometer')) {
+          if (!viewModel.isSensorAvailable('linearAcceleration')) {
             return const Center(
-              child: Text('Accelerometer not available'),
+              child: Text('Motion sensor unavailable. Waiting for a reading.'),
             );
           }
 
-          // Store latest values for the timer to use
-          _lastAccelY = viewModel.linearAccelY;
-          _lastGpsSpeedKmh = viewModel.gpsSpeedKmh;
-
           final currentSpeedKmh = viewModel.gpsSpeedKmh;
           final currentSpeedMs = viewModel.gpsSpeed;
-          final hasGps = viewModel.isSensorAvailable('gps');
+          final hasGps =
+              viewModel.isSensorAvailable('gps') && viewModel.gpsSpeedFresh;
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
@@ -173,7 +172,7 @@ class _AccelerometerScreenState extends State<AccelerometerScreen> {
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             Text(
-                              currentSpeedKmh.toStringAsFixed(1),
+                              hasGps ? currentSpeedKmh.toStringAsFixed(1) : '—',
                               style: TextStyle(
                                 fontSize: 64,
                                 fontWeight: FontWeight.bold,
@@ -187,7 +186,9 @@ class _AccelerometerScreenState extends State<AccelerometerScreen> {
                                 'km/h',
                                 style: TextStyle(
                                   fontSize: 20,
-                                  color: colorScheme.onSurface.withValues(alpha: 0.6),
+                                  color: colorScheme.onSurface.withValues(
+                                    alpha: 0.6,
+                                  ),
                                 ),
                               ),
                             ),
@@ -195,7 +196,9 @@ class _AccelerometerScreenState extends State<AccelerometerScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          '${currentSpeedMs.toStringAsFixed(2)} m/s',
+                          hasGps
+                              ? '${currentSpeedMs.toStringAsFixed(2)} m/s'
+                              : 'No current speed reading',
                           style: TextStyle(
                             fontSize: 16,
                             color: colorScheme.onSurface.withValues(alpha: 0.6),
@@ -204,11 +207,27 @@ class _AccelerometerScreenState extends State<AccelerometerScreen> {
                         if (!hasGps) ...[
                           const SizedBox(height: 8),
                           Text(
-                            'GPS not available - enable location for speed',
+                            viewModel.gpsStatus,
                             style: TextStyle(
                               fontSize: 12,
                               color: Colors.orange.shade700,
                             ),
+                          ),
+                          Wrap(
+                            spacing: 8,
+                            alignment: WrapAlignment.center,
+                            children: [
+                              TextButton(
+                                onPressed: viewModel.isLoadingGPS
+                                    ? null
+                                    : viewModel.retryLocationPermission,
+                                child: const Text('Retry location'),
+                              ),
+                              TextButton(
+                                onPressed: viewModel.openAppSettings,
+                                child: const Text('Open app settings'),
+                              ),
+                            ],
                           ),
                         ],
                       ],
@@ -223,10 +242,7 @@ class _AccelerometerScreenState extends State<AccelerometerScreen> {
                     padding: const EdgeInsets.all(16),
                     child: Column(
                       children: [
-                        const Text(
-                          'CURRENT ACCELERATION',
-                          style: _kLabelStyle,
-                        ),
+                        const Text('CURRENT ACCELERATION', style: _kLabelStyle),
                         const SizedBox(height: 12),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -240,8 +256,8 @@ class _AccelerometerScreenState extends State<AccelerometerScreen> {
                                 color: _smoothedAccel > 0.3
                                     ? Colors.green
                                     : _smoothedAccel < -0.3
-                                        ? Colors.red
-                                        : Colors.grey,
+                                    ? Colors.red
+                                    : Colors.grey,
                               ),
                             ),
                             const SizedBox(width: 8),
@@ -251,7 +267,9 @@ class _AccelerometerScreenState extends State<AccelerometerScreen> {
                                 'm/s\u00B2',
                                 style: TextStyle(
                                   fontSize: 16,
-                                  color: colorScheme.onSurface.withValues(alpha: 0.6),
+                                  color: colorScheme.onSurface.withValues(
+                                    alpha: 0.6,
+                                  ),
                                 ),
                               ),
                             ),
@@ -261,8 +279,8 @@ class _AccelerometerScreenState extends State<AccelerometerScreen> {
                         Text(
                           _smoothedAccel.abs() > 0.5
                               ? (_smoothedAccel > 0
-                                  ? 'Accelerating'
-                                  : 'Braking')
+                                    ? 'Accelerating'
+                                    : 'Braking')
                               : 'Steady',
                           style: TextStyle(
                             fontSize: 14,
@@ -282,10 +300,7 @@ class _AccelerometerScreenState extends State<AccelerometerScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'PEAK MEASUREMENTS',
-                          style: _kLabelStyle,
-                        ),
+                        const Text('PEAK MEASUREMENTS', style: _kLabelStyle),
                         const SizedBox(height: 16),
                         _buildPeakRow(
                           'Top Speed',
@@ -350,10 +365,7 @@ class _AccelerometerScreenState extends State<AccelerometerScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'SPEED HISTORY',
-                            style: _kLabelStyle,
-                          ),
+                          const Text('SPEED HISTORY', style: _kLabelStyle),
                           const SizedBox(height: 16),
                           SizedBox(
                             height: 150,
@@ -375,22 +387,40 @@ class _AccelerometerScreenState extends State<AccelerometerScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'REFERENCE GUIDE',
-                          style: _kLabelStyle,
-                        ),
+                        const Text('REFERENCE GUIDE', style: _kLabelStyle),
                         const SizedBox(height: 16),
                         _buildReferenceRow(
-                            'City car (0-100 km/h)', '~10-15 sec', '~2-3 m/s\u00B2'),
+                          'City car (0-100 km/h)',
+                          '~10-15 sec',
+                          '~2-3 m/s\u00B2',
+                        ),
                         _buildReferenceRow(
-                            'Sports car (0-100 km/h)', '~3-5 sec', '~5-8 m/s\u00B2'),
+                          'Sports car (0-100 km/h)',
+                          '~3-5 sec',
+                          '~5-8 m/s\u00B2',
+                        ),
                         _buildReferenceRow(
-                            'Supercar (0-100 km/h)', '<3 sec', '>10 m/s\u00B2'),
+                          'Supercar (0-100 km/h)',
+                          '<3 sec',
+                          '>10 m/s\u00B2',
+                        ),
                         const Divider(height: 16),
-                        _buildReferenceRow('Normal braking', '', '~3-4 m/s\u00B2'),
-                        _buildReferenceRow('Emergency braking', '', '~7-10 m/s\u00B2'),
+                        _buildReferenceRow(
+                          'Normal braking',
+                          '',
+                          '~3-4 m/s\u00B2',
+                        ),
+                        _buildReferenceRow(
+                          'Emergency braking',
+                          '',
+                          '~7-10 m/s\u00B2',
+                        ),
                         const Divider(height: 16),
-                        _buildReferenceRow('Train acceleration', '', '~0.5-1.5 m/s\u00B2'),
+                        _buildReferenceRow(
+                          'Train acceleration',
+                          '',
+                          '~0.5-1.5 m/s\u00B2',
+                        ),
                         _buildReferenceRow('Elevator', '', '~1-2 m/s\u00B2'),
                       ],
                     ),
@@ -408,8 +438,10 @@ class _AccelerometerScreenState extends State<AccelerometerScreen> {
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.info_outline,
-                                color: colorScheme.onPrimaryContainer),
+                            Icon(
+                              Icons.info_outline,
+                              color: colorScheme.onPrimaryContainer,
+                            ),
                             const SizedBox(width: 8),
                             Text(
                               'HOW TO USE',
@@ -430,8 +462,9 @@ class _AccelerometerScreenState extends State<AccelerometerScreen> {
                           '4. Acceleration is measured via accelerometer\n'
                           '5. Use reset to clear peak measurements',
                           style: TextStyle(
-                            color: colorScheme.onPrimaryContainer
-                                .withValues(alpha: 0.9),
+                            color: colorScheme.onPrimaryContainer.withValues(
+                              alpha: 0.9,
+                            ),
                             height: 1.6,
                           ),
                         ),
@@ -447,8 +480,7 @@ class _AccelerometerScreenState extends State<AccelerometerScreen> {
     );
   }
 
-  Widget _buildPeakRow(
-      String label, String value, IconData icon, Color color) {
+  Widget _buildPeakRow(String label, String value, IconData icon, Color color) {
     return Row(
       children: [
         Container(
@@ -460,12 +492,7 @@ class _AccelerometerScreenState extends State<AccelerometerScreen> {
           child: Icon(icon, color: color, size: 20),
         ),
         const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            label,
-            style: const TextStyle(fontSize: 14),
-          ),
-        ),
+        Expanded(child: Text(label, style: const TextStyle(fontSize: 14))),
         Text(
           value,
           style: TextStyle(
@@ -485,30 +512,21 @@ class _AccelerometerScreenState extends State<AccelerometerScreen> {
         children: [
           Expanded(
             flex: 3,
-            child: Text(
-              label,
-              style: const TextStyle(fontSize: 13),
-            ),
+            child: Text(label, style: const TextStyle(fontSize: 13)),
           ),
           if (time.isNotEmpty)
             Expanded(
               flex: 2,
               child: Text(
                 time,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey.shade600,
-                ),
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
               ),
             ),
           Expanded(
             flex: 2,
             child: Text(
               accel,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
               textAlign: TextAlign.right,
             ),
           ),
@@ -568,11 +586,7 @@ class _AccelerationGraphPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _AccelerationGraphPainter oldDelegate) {
-    if (oldDelegate.data.length != data.length) return true;
-    for (var i = 0; i < data.length; i++) {
-      if (oldDelegate.data[i] != data[i]) return true;
-    }
-    return false;
+    return true;
   }
 }
 
@@ -625,10 +639,6 @@ class _SpeedGraphPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _SpeedGraphPainter oldDelegate) {
-    if (oldDelegate.data.length != data.length) return true;
-    for (var i = 0; i < data.length; i++) {
-      if (oldDelegate.data[i] != data[i]) return true;
-    }
-    return false;
+    return true;
   }
 }
